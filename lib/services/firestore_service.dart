@@ -108,34 +108,52 @@ class FirestoreService {
   }) async {
     final docRef = _firestore.collection('appointments').doc();
 
-    // Check if counsellor is on leave during this time
+    final startMs = start.millisecondsSinceEpoch;
+    final endMs = end.millisecondsSinceEpoch;
+
+    // Check if counsellor is on leave during this time (single-range query, filter in memory)
     final leaveQuery = await _firestore
         .collection('leaves')
         .where('userId', isEqualTo: counsellorId)
-        .where('startDate', isLessThanOrEqualTo: end.millisecondsSinceEpoch)
-        .where('endDate', isGreaterThanOrEqualTo: start.millisecondsSinceEpoch)
+        .where('startDate', isLessThanOrEqualTo: endMs)
         .get();
 
-    if (leaveQuery.docs.isNotEmpty) {
+    final onLeave = leaveQuery.docs.any((doc) {
+      final data = doc.data();
+      final leaveEnd = (data['endDate'] as num?)?.toInt() ?? 0;
+      return leaveEnd >= startMs;
+    });
+
+    if (onLeave) {
       throw 'Counsellor is on leave during this time. Please choose another date or counsellor.';
     }
 
-    // Detect duplicates/overlaps for counsellor or student during same window
+    // Detect duplicates/overlaps for counsellor or student during same window (single-range query, filter in memory)
     final conflictQuery = await _firestore
         .collection('appointments')
         .where('counsellorId', isEqualTo: counsellorId)
-        .where('start', isLessThan: end.millisecondsSinceEpoch)
-        .where('end', isGreaterThan: start.millisecondsSinceEpoch)
+        .where('start', isLessThan: endMs)
         .get();
+
+    final hasCounsellorConflict = conflictQuery.docs.any((doc) {
+      final data = doc.data();
+      final apptEnd = (data['end'] as num?)?.toInt() ?? 0;
+      return apptEnd > startMs;
+    });
 
     final studentConflictQuery = await _firestore
         .collection('appointments')
         .where('studentId', isEqualTo: studentId)
-        .where('start', isLessThan: end.millisecondsSinceEpoch)
-        .where('end', isGreaterThan: start.millisecondsSinceEpoch)
+        .where('start', isLessThan: endMs)
         .get();
 
-    final isDuplicate = conflictQuery.docs.isNotEmpty || studentConflictQuery.docs.isNotEmpty;
+    final hasStudentConflict = studentConflictQuery.docs.any((doc) {
+      final data = doc.data();
+      final apptEnd = (data['end'] as num?)?.toInt() ?? 0;
+      return apptEnd > startMs;
+    });
+
+    final isDuplicate = hasCounsellorConflict || hasStudentConflict;
 
     final appointment = Appointment(
       id: docRef.id,
@@ -237,13 +255,20 @@ class FirestoreService {
   }
 
   Stream<List<UserProfile>> counsellors() {
+    print('→ Fetching counsellors list...');
     return _firestore
         .collection('users')
         .where('role', isEqualTo: UserRole.counsellor.name)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => UserProfile.fromJson(doc.data()))
-            .toList());
+        .map((snap) {
+          print('✓ Counsellors query returned ${snap.docs.length} documents');
+          return snap.docs
+              .map((doc) {
+                print('  - Counsellor: ${doc.data()['displayName']} (${doc.id})');
+                return UserProfile.fromJson(doc.data());
+              })
+              .toList();
+        });
   }
 
   Future<void> deleteUserProfile(String uid) {
@@ -547,6 +572,54 @@ class FirestoreService {
         .map((snap) => snap.docs
             .map((doc) => UserProfile.fromJson({...doc.data(), 'uid': doc.id}))
             .toList());
+  }
+
+  // Check if a time slot is available for a counsellor (before booking)
+  Future<List<String>> checkAvailability({
+    required String counsellorId,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final conflicts = <String>[];
+
+    final startMs = start.millisecondsSinceEpoch;
+    final endMs = end.millisecondsSinceEpoch;
+
+    // Check for leave conflicts (single-range query, filter endDate in memory)
+    final leaveQuery = await _firestore
+        .collection('leaves')
+        .where('userId', isEqualTo: counsellorId)
+        .where('startDate', isLessThanOrEqualTo: endMs)
+        .get();
+
+    final onLeave = leaveQuery.docs.any((doc) {
+      final data = doc.data();
+      final leaveEnd = (data['endDate'] as num?)?.toInt() ?? 0;
+      return leaveEnd >= startMs;
+    });
+
+    if (onLeave) {
+      conflicts.add('Counsellor is on leave during this time.');
+    }
+
+    // Check for appointment conflicts (single-range query, filter end in memory)
+    final appointmentQuery = await _firestore
+        .collection('appointments')
+        .where('counsellorId', isEqualTo: counsellorId)
+        .where('start', isLessThan: endMs)
+        .get();
+
+    final hasConflict = appointmentQuery.docs.any((doc) {
+      final data = doc.data();
+      final apptEnd = (data['end'] as num?)?.toInt() ?? 0;
+      return apptEnd > startMs;
+    });
+
+    if (hasConflict) {
+      conflicts.add('Counsellor already has an appointment at this time.');
+    }
+
+    return conflicts;
   }
 
   // Update user profile

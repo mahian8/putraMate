@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_providers.dart';
+import '../../services/firestore_service.dart';
 import '../common/common_widgets.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -12,13 +13,72 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   final _nameController = TextEditingController();
-  bool _savingName = false;
+  final _phoneController = TextEditingController();
+  final _dobController = TextEditingController();
+  final _genderController = TextEditingController();
+  final _studentIdController = TextEditingController();
+  final _bloodTypeController = TextEditingController();
+  final _allergiesController = TextEditingController();
+  final _medicalConditionsController = TextEditingController();
+  final _emergencyContactController = TextEditingController();
+  final _emergencyPhoneController = TextEditingController();
+  
+  bool _savingProfile = false;
   bool _changingPassword = false;
 
   @override
   void dispose() {
     _nameController.dispose();
+    _phoneController.dispose();
+    _dobController.dispose();
+    _genderController.dispose();
+    _studentIdController.dispose();
+    _bloodTypeController.dispose();
+    _allergiesController.dispose();
+    _medicalConditionsController.dispose();
+    _emergencyContactController.dispose();
+    _emergencyPhoneController.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveProfile() async {
+    final user = ref.read(authStateProvider).value;
+    if (user == null) return;
+
+    setState(() => _savingProfile = true);
+    try {
+      final fs = FirestoreService();
+      await fs.updateUserProfile(
+        uid: user.uid,
+        data: {
+          'displayName': _nameController.text.trim(),
+          'phoneNumber': _phoneController.text.trim(),
+          'dateOfBirth': _dobController.text.trim(),
+          'gender': _genderController.text.trim(),
+          'studentId': _studentIdController.text.trim(),
+          'bloodType': _bloodTypeController.text.trim(),
+          'allergies': _allergiesController.text.trim(),
+          'medicalConditions': _medicalConditionsController.text.trim(),
+          'emergencyContact': _emergencyContactController.text.trim(),
+          'emergencyContactPhone': _emergencyPhoneController.text.trim(),
+          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+        },
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile updated successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating profile: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingProfile = false);
+    }
   }
 
   @override
@@ -33,137 +93,195 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         data: (profile) {
           if (profile == null) return const EmptyState(message: 'No profile');
 
-          if (_nameController.text != profile.displayName) {
-            _nameController.text = profile.displayName;
-          }
+          // Initialize controllers with profile data
+          _nameController.text = profile.displayName;
+          _phoneController.text = profile.phoneNumber ?? '';
+          _dobController.text = profile.dateOfBirth ?? '';
+          _genderController.text = profile.gender ?? '';
+          _studentIdController.text = profile.studentId ?? '';
+          _bloodTypeController.text = profile.bloodType ?? '';
+          _allergiesController.text = profile.allergies ?? '';
+          _medicalConditionsController.text = profile.medicalConditions ?? '';
+          _emergencyContactController.text = profile.emergencyContact ?? '';
+          _emergencyPhoneController.text = profile.emergencyContactPhone ?? '';
 
           return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Account', style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    border: OutlineInputBorder(),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Account Section
+                  Text('Account', style: Theme.of(context).textTheme.headlineSmall),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Name *',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  initialValue: profile.email,
-                  decoration: const InputDecoration(
-                    labelText: 'Email (cannot change)',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    initialValue: profile.email,
+                    decoration: const InputDecoration(
+                      labelText: 'Email (cannot change)',
+                      border: OutlineInputBorder(),
+                    ),
+                    enabled: false,
                   ),
-                  enabled: false,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    RoleBadge(role: profile.role),
-                    const SizedBox(width: 8),
-                    Text(profile.role.name.toUpperCase()),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: _savingName
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Icon(Icons.save),
-                    label: Text(_savingName ? 'Saving...' : 'Save Name'),
-                    onPressed: _savingName
-                        ? null
-                        : () async {
-                            final newName = _nameController.text.trim();
-                            if (newName.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Name cannot be empty')),
-                              );
-                              return;
-                            }
-                            setState(() => _savingName = true);
-                            try {
-                              await ref.read(authServiceProvider).updateDisplayName(newName);
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Name updated')),
-                                );
-                              }
-                            } catch (e) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Failed to update name: $e')),
-                                );
-                              }
-                            } finally {
-                              if (mounted) setState(() => _savingName = false);
-                            }
-                          },
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      RoleBadge(role: profile.role),
+                      const SizedBox(width: 8),
+                      Text(profile.role.name.toUpperCase()),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 24),
-                Text('Personal Details', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                _infoTile('Student ID', profile.studentId),
-                _infoTile('Phone', profile.phoneNumber),
-                _infoTile('Date of Birth', profile.dateOfBirth),
-                _infoTile('Gender', profile.gender),
-                const SizedBox(height: 8),
-                Text('Medical Info', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                _infoTile('Blood Type', profile.bloodType),
-                _infoTile('Allergies', profile.allergies),
-                _infoTile('Medical Conditions', profile.medicalConditions),
-                _infoTile('Emergency Contact', profile.emergencyContact),
-                _infoTile('Emergency Phone', profile.emergencyContactPhone),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: _changingPassword
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.lock_reset),
-                    label: Text(_changingPassword ? 'Updating...' : 'Change Password'),
-                    onPressed: _changingPassword
-                        ? null
-                        : () => _showChangePasswordDialog(context),
+                  const SizedBox(height: 24),
+
+                  // Personal Details Section
+                  Text('Personal Details', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _studentIdController,
+                    decoration: const InputDecoration(
+                      labelText: 'Student ID',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Sign out'),
-                    onPressed: () async => ref.read(authServiceProvider).signOut(),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _phoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _dobController,
+                    decoration: const InputDecoration(
+                      labelText: 'Date of Birth',
+                      hintText: 'YYYY-MM-DD',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _genderController,
+                    decoration: const InputDecoration(
+                      labelText: 'Gender',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Medical Information Section
+                  Text('Medical Information', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _bloodTypeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Blood Type',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _allergiesController,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Allergies',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _medicalConditionsController,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Medical Conditions',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Emergency Contact Section
+                  Text('Emergency Contact', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _emergencyContactController,
+                    decoration: const InputDecoration(
+                      labelText: 'Contact Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _emergencyPhoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Contact Phone',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Save Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: _savingProfile
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.save),
+                      label: Text(_savingProfile ? 'Saving...' : 'Save Profile'),
+                      onPressed: _savingProfile ? null : _saveProfile,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Change Password Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: _changingPassword
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.lock_reset),
+                      label: Text(
+                        _changingPassword ? 'Updating...' : 'Change Password',
+                      ),
+                      onPressed:
+                          _changingPassword ? null : () => _showChangePasswordDialog(context),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Sign Out Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Sign out'),
+                      onPressed: () async => ref.read(authServiceProvider).signOut(),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },
       ),
-    );
-  }
-
-  Widget _infoTile(String label, String? value) {
-    return ListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      title: Text(label),
-      subtitle: Text(value?.isNotEmpty == true ? value! : 'Not provided'),
     );
   }
 

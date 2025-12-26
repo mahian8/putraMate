@@ -23,6 +23,7 @@ class Appointment {
     this.sessionType,
     this.initialProblem,
     this.meetLink,
+    this.isReviewApproved = false,
   });
 
   final String id;
@@ -45,6 +46,7 @@ class Appointment {
   final SessionType? sessionType;
   final String? initialProblem;
   final String? meetLink;
+  final bool isReviewApproved;
 
   factory Appointment.fromJson(Map<String, dynamic> json, String id) {
     return Appointment(
@@ -72,6 +74,7 @@ class Appointment {
       sessionType: _sessionTypeFromString(json['sessionType'] as String?),
       initialProblem: json['initialProblem'] as String?,
       meetLink: json['meetLink'] as String?,
+      isReviewApproved: json['isReviewApproved'] as bool? ?? false,
     );
   }
 
@@ -96,6 +99,7 @@ class Appointment {
       if (sessionType != null) 'sessionType': sessionType!.name,
       if (initialProblem != null) 'initialProblem': initialProblem,
       if (meetLink != null) 'meetLink': meetLink,
+      'isReviewApproved': isReviewApproved,
     };
   }
 

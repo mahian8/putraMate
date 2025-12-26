@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/appointment.dart';
 import '../../models/user_profile.dart';
 import '../../providers/auth_providers.dart';
 import '../../services/firestore_service.dart';
 import '../common/common_widgets.dart';
+import '../student/community_forum_page.dart';
 
 final firestoreProvider = Provider((ref) => FirestoreService());
 
@@ -65,6 +67,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                 _TabButton(label: 'Manage Counsellors', index: 3, selected: _selectedTab == 3, onTap: () => setState(() => _selectedTab = 3)),
                 _TabButton(label: 'Appointments', index: 4, selected: _selectedTab == 4, onTap: () => setState(() => _selectedTab = 4)),
                 _TabButton(label: 'Leave Management', index: 5, selected: _selectedTab == 5, onTap: () => setState(() => _selectedTab = 5)),
+                _TabButton(label: 'Community', index: 6, selected: _selectedTab == 6, onTap: () => setState(() => _selectedTab = 6)),
               ],
             ),
           ),
@@ -79,6 +82,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                 _ManageCounsellorsTab(),
                 _ManageAppointmentsTab(),
                 _LeaveManagementTab(),
+                CommunityForumPage(),
               ],
             ),
           ),
@@ -197,24 +201,70 @@ class _AddCounsellorTabState extends ConsumerState<_AddCounsellorTab> {
           );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Counsellor created successfully')),
+        // Show success dialog explaining the admin needs to sign back in
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 32),
+                SizedBox(width: 12),
+                Text('Counsellor Created!'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Successfully created: ${_nameController.text.trim()}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Due to Firebase security, you have been signed out and need to log back in as admin to continue.',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Counsellor credentials:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 4),
+                      Text('The counsellor can now log in and will be prompted to change their temporary password.'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  // User will be redirected to login by auth state change
+                },
+                child: const Text('OK - Go to Login'),
+              ),
+            ],
+          ),
         );
-        _nameController.clear();
-        _emailController.clear();
-        _counsellorIdController.clear();
-        _designationController.clear();
-        _expertiseController.clear();
-        _passwordController.clear();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
         );
+        setState(() => _loading = false);
       }
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -358,6 +408,56 @@ class _ManageStudentsTab extends ConsumerWidget {
                             const SizedBox(height: 4),
                             Text(appt.studentComment!, style: const TextStyle(fontStyle: FontStyle.italic)),
                           ],
+                          const SizedBox(height: 8),
+                          // Approval Status
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: appt.isReviewApproved ? Colors.green.shade50 : Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  appt.isReviewApproved ? Icons.check_circle : Icons.pending,
+                                  color: appt.isReviewApproved ? Colors.green : Colors.orange,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  appt.isReviewApproved ? 'Approved' : 'Pending Approval',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: appt.isReviewApproved ? Colors.green : Colors.orange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (!appt.isReviewApproved)
+                                  OutlinedButton(
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    ),
+                                    onPressed: () async {
+                                      await firestore.updateAppointmentStatus(
+                                        appointmentId: appt.id,
+                                        status: appt.status,
+                                      );
+                                      // Update approval status
+                                      await FirebaseFirestore.instance
+                                          .collection('appointments')
+                                          .doc(appt.id)
+                                          .update({'isReviewApproved': true});
+                                      if (context.mounted) {
+                                        Navigator.pop(context);
+                                        _showStudentDetails(context, ref, student);
+                                      }
+                                    },
+                                    child: const Text('Approve', style: TextStyle(fontSize: 11)),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),

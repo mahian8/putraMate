@@ -26,22 +26,30 @@ service cloud.firestore {
     
     // Users collection
     match /users/{userId} {
+      // Allow querying for users by any authenticated user (students need to see counsellors)
+      allow list: if isSignedIn() && request.query.limit <= 100;
+      
+      // Allow read for self, admins, counsellors, and students reading counsellor profiles
       allow read: if isSignedIn() && (
         request.auth.uid == userId || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'counsellor' ||
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'))
+        isAdmin() ||
+        isCounsellor() ||
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student')
       );
+      
+      // Allow create for self-registration (students) or admin creating counsellors
       allow create: if isSignedIn() && (
         request.auth.uid == userId ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        isAdmin()
       );
-      allow write, delete: if isSignedIn() && (
+      
+      // Allow updates for self or admin
+      allow update: if isSignedIn() && (
         request.auth.uid == userId || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        isAdmin()
       );
+      
+      allow delete: if isSignedIn() && isAdmin();
       
       // Student journals - private to student and their assigned counsellor
       match /journals/{journalId} {
@@ -66,26 +74,30 @@ service cloud.firestore {
     
     // Appointments
     match /appointments/{appointmentId} {
+      // Allow listing appointments for queries
+      allow list: if isSignedIn() && (
+        // Query constraint must filter for the requesting user's appointments or approved reviews
+        request.query.limit <= 200
+      );
+      
       allow read: if isSignedIn() && (
         resource.data.studentId == request.auth.uid ||
         resource.data.counsellorId == request.auth.uid ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        isAdmin() ||
+        // Allow students to view approved reviews for counsellor detail page
+        (isStudent() && resource.data.isReviewApproved == true && resource.data.status == 'completed')
       );
-      allow create: if isSignedIn() && (
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student'
-      );
+      
+      // Students can create appointments
+      allow create: if isSignedIn();
+      
       allow update: if isSignedIn() && (
         resource.data.studentId == request.auth.uid ||
         resource.data.counsellorId == request.auth.uid ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        isAdmin()
       );
-      allow delete: if isSignedIn() && (
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-      );
+      
+      allow delete: if isSignedIn() && isAdmin();
     }
     
     // Community forum - public read to authenticated, authenticated write
@@ -138,6 +150,10 @@ service cloud.firestore {
 
     // High-risk flags - for counsellors and admins to review
     match /highRiskFlags/{flagId} {
+      allow list: if isSignedIn() && (
+        isCounsellor() || isAdmin()
+      );
+      
       allow read: if isSignedIn() && (
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'counsellor' ||
@@ -151,17 +167,25 @@ service cloud.firestore {
       );
     }
 
+    // Notifications collection - for sending notifications to users
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && request.query.limit <= 100;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+    }
+
     // Leaves collection - for counsellors and admins to mark leave
     match /leaves/{leaveId} {
+      allow list: if isSignedIn();
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        isAdmin()
       );
       allow create, update, delete: if isSignedIn() && (
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'counsellor' ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        isCounsellor() || isAdmin()
       );
     }
   }

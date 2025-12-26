@@ -18,16 +18,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _password = TextEditingController();
   bool _loading = false;
   String? _error;
-  String _selectedRole = 'student';
   bool _obscurePassword = true;
 
   @override
   void initState() {
     super.initState();
-    _selectedRole = 'student';
   }
-
-  void _selectRole(String role) => setState(() => _selectedRole = role);
 
   @override
   void dispose() {
@@ -37,6 +33,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _submit() async {
+    if (_email.text.trim().isEmpty || _password.text.isEmpty) {
+      setState(() => _error = 'Please enter both email and password');
+      return;
+    }
+
     setState(() {
       _loading = true;
       _error = null;
@@ -51,7 +52,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           .first;
 
       final email = cred.user?.email?.toLowerCase();
-      final forcedAdmin = email == 'admin@admin.com';
+      final forcedAdmin = email?.endsWith('@admin.com') ?? false;
       final role = forcedAdmin ? UserRole.admin : (profile?.role ?? UserRole.student);
       
       if (!mounted) return;
@@ -69,7 +70,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           break;
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      // Extract clean error message by removing "Exception: " prefix
+      String errorMsg = e.toString();
+      if (errorMsg.startsWith('Exception: ')) {
+        errorMsg = errorMsg.substring(11);
+      }
+      setState(() => _error = errorMsg);
+      print('✗ Login error: $errorMsg');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -77,7 +84,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return PrimaryScaffold(
       title: 'Welcome back',
       body: Stack(
@@ -130,53 +136,29 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: LinearGradient(
-                colors: [scheme.primary.withValues(alpha: 0.08), scheme.secondary.withValues(alpha: 0.06)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          if (_error != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                border: Border.all(color: Theme.of(context).colorScheme.error),
+                borderRadius: BorderRadius.circular(8),
               ),
-              border: Border.all(color: scheme.primary.withValues(alpha: 0.2), width: 1),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Choose role to log in', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _RolePill(
-                        label: 'Student',
-                        icon: Icons.school,
-                        isSelected: _selectedRole == 'student',
-                        onTap: () => _selectRole('student'),
-                      ),
-                      _RolePill(
-                        label: 'Counsellor',
-                        icon: Icons.psychology,
-                        isSelected: _selectedRole == 'counsellor',
-                        onTap: () => _selectRole('counsellor'),
-                      ),
-                      _RolePill(
-                        label: 'Admin',
-                        icon: Icons.admin_panel_settings,
-                        isSelected: _selectedRole == 'admin',
-                        onTap: () => _selectRole('admin'),
-                      ),
-                    ],
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 14),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          if (_error != null)
-            Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            const SizedBox(height: 16),
+          ],
           TextField(controller: _email, decoration: const InputDecoration(labelText: 'Email')),
           const SizedBox(height: 12),
           TextField(
@@ -197,11 +179,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             child: _loading ? const CircularProgressIndicator() : const Text('Sign in'),
           ),
           const SizedBox(height: 16),
-          if (_selectedRole == 'student')
-            TextButton(
-              onPressed: () => context.pushNamed(AppRoute.register.name),
-              child: const Text('Create student account'),
-            ),
+          TextButton(
+            onPressed: () => context.pushNamed(AppRoute.register.name),
+            child: const Text('Create student account'),
+          ),
           TextButton(
             onPressed: () => context.pushNamed(AppRoute.forgotPassword.name),
             child: const Text('Forgot password?'),
@@ -213,40 +194,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _RolePill extends StatelessWidget {
-  const _RolePill({required this.label, required this.isSelected, required this.onTap, required this.icon});
-
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(right: 12),
-      child: FilterChip(
-        avatar: Icon(icon, size: 18, color: isSelected ? scheme.primary : scheme.onSurface),
-        label: Text(label),
-        selected: isSelected,
-        backgroundColor: Colors.transparent,
-        selectedColor: scheme.primary.withValues(alpha: 0.2),
-        side: BorderSide(
-          color: isSelected ? scheme.primary : scheme.outline.withValues(alpha: 0.4),
-          width: isSelected ? 2 : 1,
-        ),
-        labelStyle: TextStyle(
-          color: isSelected ? scheme.primary : scheme.onSurface,
-          fontWeight: FontWeight.w700,
-          fontSize: 13,
-        ),
-        onSelected: (_) => onTap(),
       ),
     );
   }

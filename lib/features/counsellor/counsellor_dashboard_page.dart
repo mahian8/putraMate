@@ -6,6 +6,7 @@ import '../../models/user_profile.dart';
 import '../../providers/auth_providers.dart';
 import '../../services/firestore_service.dart';
 import '../common/common_widgets.dart';
+import '../student/community_forum_page.dart';
 
 final _fsProvider = Provider((ref) => FirestoreService());
 
@@ -57,10 +58,11 @@ class _CounsellorDashboardPageState extends ConsumerState<CounsellorDashboardPag
       _AssignedStudentsTab(counsellorId: user.uid),
       _LeaveManagementTab(counsellorId: user.uid),
       _CounsellorProfileTab(userId: user.uid),
+      const CommunityForumPage(),
     ];
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Counsellor Dashboard'),
@@ -78,6 +80,7 @@ class _CounsellorDashboardPageState extends ConsumerState<CounsellorDashboardPag
               Tab(text: 'Assigned Students'),
               Tab(text: 'Leave Management'),
               Tab(text: 'Profile'),
+              Tab(text: 'Community'),
             ],
           ),
         ),

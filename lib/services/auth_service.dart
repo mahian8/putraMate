@@ -17,40 +17,54 @@ class AuthService {
   Future<UserCredential> signIn(String email, String password) async {
     try {
       final cred = await _auth.signInWithEmailAndPassword(email: email, password: password);
+      print('✓ Auth successful for: $email');
 
       // Fetch role for logging
       String? role;
       try {
         final doc = await _firestore.collection('users').doc(cred.user?.uid).get();
+        print('✓ User doc fetched: exists=${doc.exists}');
         role = (doc.data()?['role'] as String?);
+        print('✓ Role fetched: $role');
         
-        // Auto-create admin profile if logging in as admin@admin.com and no profile exists
-        if (email.toLowerCase() == 'admin@admin.com' && (!doc.exists || role != 'admin')) {
+        // Auto-create admin profile if logging in with @admin.com domain and no profile exists
+        if (email.toLowerCase().endsWith('@admin.com') && (!doc.exists || role != 'admin')) {
+          print('→ Creating admin profile...');
           await _firestore.collection('users').doc(cred.user?.uid).set({
             'uid': cred.user?.uid,
             'email': email,
-            'displayName': 'Admin',
+            'displayName': email.split('@')[0],
             'role': 'admin',
           }, SetOptions(merge: true));
           role = 'admin';
+          print('✓ Admin profile created');
         }
-      } catch (_) {}
+      } catch (e) {
+        print('✗ Error fetching/creating user profile: $e');
+      }
 
       try {
+        print('→ Adding login event...');
         await _firestore.collection('loginEvents').add({
           'uid': cred.user?.uid,
           'email': email,
           if (role != null) 'role': role,
           'timestamp': DateTime.now().millisecondsSinceEpoch,
         });
-      } catch (_) {}
+        print('✓ Login event added successfully');
+      } catch (e) {
+        print('✗ Error logging login event: $e');
+      }
 
+      print('✓ Sign in complete for: $email');
       return cred;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
         throw 'User not found. Please check your email or create a new account.';
       } else if (e.code == 'wrong-password') {
         throw 'Incorrect password. Please try again.';
+      } else if (e.code == 'invalid-credential') {
+        throw 'Invalid email or password. Please try again.';
       } else if (e.code == 'invalid-email') {
         throw 'Invalid email address.';
       } else if (e.code == 'user-disabled') {
@@ -58,13 +72,33 @@ class AuthService {
       } else if (e.code == 'too-many-requests') {
         throw 'Too many login attempts. Please try again later.';
       }
+      print('✗ Unhandled Firebase error code: ${e.code} - ${e.message}');
       rethrow;
     }
   }
 
   Future<void> signOut() => _auth.signOut();
 
-  Future<void> resetPassword(String email) => _auth.sendPasswordResetEmail(email: email);
+  Future<void> resetPassword(String email) async {
+    try {
+      print('→ Sending password reset email to: $email');
+      await _auth.sendPasswordResetEmail(email: email);
+      print('✓ Password reset email sent successfully');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        throw 'Email not found. Please check your email address.';
+      } else if (e.code == 'invalid-email') {
+        throw 'Invalid email address format.';
+      } else if (e.code == 'too-many-requests') {
+        throw 'Too many reset requests. Please try again later.';
+      }
+      print('✗ Password reset error: ${e.message}');
+      throw 'Failed to send reset email: ${e.message}';
+    } catch (e) {
+      print('✗ Unexpected error sending reset email: $e');
+      throw 'Error sending reset email: $e';
+    }
+  }
 
   Future<UserCredential> registerStudent({
     required String email,
@@ -128,14 +162,23 @@ class AuthService {
     required String designation,
     required String expertise,
   }) async {
-    // Create auth account
+    // Save current admin credentials
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) throw 'Not signed in as admin';
+    final adminEmail = currentUser.email!;
+    
+    print('→ Creating counsellor account for: $email');
+    
+    // Create auth account for counsellor (this will sign us in as the counsellor)
     final userCred = await _auth.createUserWithEmailAndPassword(
       email: email,
       password: password,
     );
     final uid = userCred.user!.uid;
+    
+    print('✓ Auth account created: $uid');
 
-    // Create Firestore profile
+    // Create Firestore profile for counsellor
     await _firestore.collection('users').doc(uid).set({
       'uid': uid,
       'email': email,
@@ -148,7 +191,16 @@ class AuthService {
       'isActive': true,
       'createdAt': DateTime.now().millisecondsSinceEpoch,
     });
+    
+    print('✓ Firestore profile created');
 
+    // Sign out the newly created counsellor
+    await _auth.signOut();
+    print('→ Signed out counsellor, admin will need to re-authenticate');
+    
+    // Note: Admin will be signed out and redirected to login
+    // The admin dashboard should handle this gracefully
+    
     return uid;
   }
 
