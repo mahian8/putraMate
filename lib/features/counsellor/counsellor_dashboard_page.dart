@@ -14,11 +14,12 @@ class CounsellorDashboardPage extends ConsumerStatefulWidget {
   const CounsellorDashboardPage({super.key});
 
   @override
-  ConsumerState<CounsellorDashboardPage> createState() => _CounsellorDashboardPageState();
+  ConsumerState<CounsellorDashboardPage> createState() =>
+      _CounsellorDashboardPageState();
 }
 
-class _CounsellorDashboardPageState extends ConsumerState<CounsellorDashboardPage> {
-
+class _CounsellorDashboardPageState
+    extends ConsumerState<CounsellorDashboardPage> {
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -109,8 +110,10 @@ class _NextSessionsTab extends ConsumerWidget {
         }
 
         final appts = snapshot.data!;
-        final upcoming = appts.where((a) => a.start.isAfter(DateTime.now())).toList();
-        final past = appts.where((a) => a.start.isBefore(DateTime.now())).toList();
+        final upcoming =
+            appts.where((a) => a.start.isAfter(DateTime.now())).toList();
+        final past =
+            appts.where((a) => a.start.isBefore(DateTime.now())).toList();
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -191,8 +194,10 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
   }
 
   Future<void> _showDetailsDialog() async {
-    final notesController = TextEditingController(text: widget.appointment.counsellorNotes);
-    final planController = TextEditingController(text: widget.appointment.followUpPlan);
+    final notesController =
+        TextEditingController(text: widget.appointment.counsellorNotes);
+    final planController =
+        TextEditingController(text: widget.appointment.followUpPlan);
     final meetLinkController = TextEditingController(text: _meetLink);
 
     await showDialog(
@@ -206,10 +211,12 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
             children: [
               Text('Topic: ${widget.appointment.topic ?? "N/A"}'),
               const SizedBox(height: 8),
-              Text('Session Type: ${widget.appointment.sessionType == SessionType.online ? "Online" : "Face-to-Face"}'),
+              Text(
+                  'Session Type: ${widget.appointment.sessionType == SessionType.online ? "Online" : "Face-to-Face"}'),
               if (widget.appointment.initialProblem != null) ...[
                 const SizedBox(height: 8),
-                Text('Initial Problem:\n${widget.appointment.initialProblem}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('Initial Problem:\n${widget.appointment.initialProblem}',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
               if (widget.appointment.notes != null) ...[
                 const SizedBox(height: 8),
@@ -217,7 +224,8 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
               ],
               if (widget.appointment.sentiment != null) ...[
                 const SizedBox(height: 8),
-                Text('Sentiment: ${widget.appointment.sentiment} (${widget.appointment.riskLevel ?? "N/A"})'),
+                Text(
+                    'Sentiment: ${widget.appointment.sentiment} (${widget.appointment.riskLevel ?? "N/A"})'),
               ],
               const Divider(),
               if (widget.appointment.sessionType == SessionType.online) ...[
@@ -233,7 +241,8 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
               TextField(
                 controller: notesController,
                 maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Counsellor Notes'),
+                decoration:
+                    const InputDecoration(labelText: 'Counsellor Notes'),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -254,9 +263,15 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
               setState(() => _meetLink = meetLinkController.text.trim());
               widget.onUpdate(
                 widget.appointment.status,
-                notesController.text.trim().isEmpty ? null : notesController.text.trim(),
-                planController.text.trim().isEmpty ? null : planController.text.trim(),
-                meetLinkController.text.trim().isEmpty ? null : meetLinkController.text.trim(),
+                notesController.text.trim().isEmpty
+                    ? null
+                    : notesController.text.trim(),
+                planController.text.trim().isEmpty
+                    ? null
+                    : planController.text.trim(),
+                meetLinkController.text.trim().isEmpty
+                    ? null
+                    : meetLinkController.text.trim(),
               );
               Navigator.pop(context);
             },
@@ -277,12 +292,17 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(df.format(widget.appointment.start)),
-            Text('Type: ${widget.appointment.sessionType == SessionType.online ? "Online" : "Face-to-Face"}'),
+            Text(
+                'Type: ${widget.appointment.sessionType == SessionType.online ? "Online" : "Face-to-Face"}'),
             if (widget.appointment.initialProblem != null)
-              Text('Problem: ${widget.appointment.initialProblem}', maxLines: 1, overflow: TextOverflow.ellipsis),
-            if (widget.appointment.sessionType == SessionType.online && _meetLink != null)
-              Text('Meet: $_meetLink', maxLines: 1, overflow: TextOverflow.ellipsis),
-            if (widget.showFeedback && widget.appointment.studentComment != null)
+              Text('Problem: ${widget.appointment.initialProblem}',
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            if (widget.appointment.sessionType == SessionType.online &&
+                _meetLink != null)
+              Text('Meet: $_meetLink',
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            if (widget.showFeedback &&
+                widget.appointment.studentComment != null)
               Text('Student feedback: ${widget.appointment.studentComment}'),
           ],
         ),
@@ -293,9 +313,13 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
             PopupMenuButton<AppointmentStatus>(
               onSelected: (status) => widget.onUpdate(status, null, null, null),
               itemBuilder: (_) => const [
-                PopupMenuItem(value: AppointmentStatus.confirmed, child: Text('Confirm')),
-                PopupMenuItem(value: AppointmentStatus.completed, child: Text('Mark done')),
-                PopupMenuItem(value: AppointmentStatus.cancelled, child: Text('Cancel')),
+                PopupMenuItem(
+                    value: AppointmentStatus.confirmed, child: Text('Confirm')),
+                PopupMenuItem(
+                    value: AppointmentStatus.completed,
+                    child: Text('Mark done')),
+                PopupMenuItem(
+                    value: AppointmentStatus.cancelled, child: Text('Cancel')),
               ],
             ),
           ],
@@ -315,7 +339,7 @@ class _AssignedStudentsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final fs = ref.watch(_fsProvider);
-    
+
     return StreamBuilder<List<UserProfile>>(
       stream: fs.assignedStudents(counsellorId),
       builder: (context, snapshot) {
@@ -349,7 +373,7 @@ class _StudentCard extends ConsumerWidget {
 
   Future<void> _showStudentDetails(BuildContext context, WidgetRef ref) async {
     final fs = ref.read(_fsProvider);
-    
+
     // Fetch risk flags, journals, moods
     final riskFlags = await fs.highRiskFlags(student.uid).first;
     final journals = await fs.journalEntries(student.uid).first;
@@ -366,32 +390,42 @@ class _StudentCard extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Email: ${student.email}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text('Email: ${student.email}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
               const Divider(),
               Text('Date of Birth: ${student.dateOfBirth ?? "N/A"}'),
               Text('Gender: ${student.gender ?? "N/A"}'),
-              if (student.medicalConditions != null && student.medicalConditions!.isNotEmpty) ...[
+              if (student.medicalConditions != null &&
+                  student.medicalConditions!.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                const Text('Medical Conditions:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text('Medical Conditions:',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
                 Text(student.medicalConditions!),
               ],
               const Divider(),
               if (riskFlags.isNotEmpty) ...[
-                const Text('⚠️ Risk Flags:', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                ...riskFlags.map((flag) => Text('• ${flag['sentiment']} (${flag['riskLevel']}) - ${DateFormat('MMM d').format(DateTime.fromMillisecondsSinceEpoch(flag['flaggedAt']))}')),
+                const Text('⚠️ Risk Flags:',
+                    style: TextStyle(
+                        color: Colors.red, fontWeight: FontWeight.bold)),
+                ...riskFlags.map((flag) => Text(
+                    '• ${flag['sentiment']} (${flag['riskLevel']}) - ${DateFormat('MMM d').format(DateTime.fromMillisecondsSinceEpoch(flag['flaggedAt']))}')),
                 const Divider(),
               ],
               if (journals.isNotEmpty) ...[
-                const Text('Recent Journal Entries:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text('Recent Journal Entries:',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
                 ...journals.take(3).map((j) => Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text('${DateFormat('MMM d').format(j.createdAt)}: ${j.content.length > 50 ? "${j.content.substring(0, 50)}..." : j.content}'),
+                      child: Text(
+                          '${DateFormat('MMM d').format(j.createdAt)}: ${j.content.length > 50 ? "${j.content.substring(0, 50)}..." : j.content}'),
                     )),
                 const Divider(),
               ],
               if (moods.isNotEmpty) ...[
-                const Text('Recent Mood Entries:', style: TextStyle(fontWeight: FontWeight.bold)),
-                ...moods.take(5).map((m) => Text('${DateFormat('MMM d').format(m.timestamp)}: Score ${m.moodScore}/10 - ${m.note.length > 30 ? "${m.note.substring(0, 30)}..." : m.note}')),
+                const Text('Recent Mood Entries:',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                ...moods.take(5).map((m) => Text(
+                    '${DateFormat('MMM d').format(m.timestamp)}: Score ${m.moodScore}/10 - ${m.note.length > 30 ? "${m.note.substring(0, 30)}..." : m.note}')),
               ],
             ],
           ),
@@ -410,7 +444,8 @@ class _StudentCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Card(
       child: ListTile(
-        leading: CircleAvatar(child: Text(student.displayName[0].toUpperCase())),
+        leading:
+            CircleAvatar(child: Text(student.displayName[0].toUpperCase())),
         title: Text(student.displayName),
         subtitle: Text(student.email),
         trailing: StreamBuilder<List<dynamic>>(
@@ -455,8 +490,10 @@ class _LeaveManagementTab extends ConsumerWidget {
                   decoration: const InputDecoration(labelText: 'Leave Type'),
                   items: const [
                     DropdownMenuItem(value: 'medical', child: Text('Medical')),
-                    DropdownMenuItem(value: 'personal', child: Text('Personal')),
-                    DropdownMenuItem(value: 'vacation', child: Text('Vacation')),
+                    DropdownMenuItem(
+                        value: 'personal', child: Text('Personal')),
+                    DropdownMenuItem(
+                        value: 'vacation', child: Text('Vacation')),
                     DropdownMenuItem(value: 'other', child: Text('Other')),
                   ],
                   onChanged: (value) {
@@ -466,7 +503,9 @@ class _LeaveManagementTab extends ConsumerWidget {
                 const SizedBox(height: 12),
                 ListTile(
                   title: const Text('Start Date'),
-                  subtitle: Text(startDate != null ? DateFormat('MMM d, y').format(startDate!) : 'Not selected'),
+                  subtitle: Text(startDate != null
+                      ? DateFormat('MMM d, y').format(startDate!)
+                      : 'Not selected'),
                   trailing: const Icon(Icons.calendar_today),
                   onTap: () async {
                     final picked = await showDatePicker(
@@ -480,7 +519,9 @@ class _LeaveManagementTab extends ConsumerWidget {
                 ),
                 ListTile(
                   title: const Text('End Date'),
-                  subtitle: Text(endDate != null ? DateFormat('MMM d, y').format(endDate!) : 'Not selected'),
+                  subtitle: Text(endDate != null
+                      ? DateFormat('MMM d, y').format(endDate!)
+                      : 'Not selected'),
                   trailing: const Icon(Icons.calendar_today),
                   onTap: () async {
                     final picked = await showDatePicker(
@@ -495,7 +536,8 @@ class _LeaveManagementTab extends ConsumerWidget {
                 const SizedBox(height: 12),
                 TextField(
                   controller: reasonController,
-                  decoration: const InputDecoration(labelText: 'Reason (optional)'),
+                  decoration:
+                      const InputDecoration(labelText: 'Reason (optional)'),
                   maxLines: 2,
                 ),
               ],
@@ -520,12 +562,12 @@ class _LeaveManagementTab extends ConsumerWidget {
     if (result == true && startDate != null && endDate != null) {
       try {
         await ref.read(_fsProvider).addLeave(
-          userId: counsellorId,
-          startDate: startDate!,
-          endDate: endDate!,
-          reason: reasonController.text.trim(),
-          leaveType: leaveType,
-        );
+              userId: counsellorId,
+              startDate: startDate!,
+              endDate: endDate!,
+              reason: reasonController.text.trim(),
+              leaveType: leaveType,
+            );
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Leave added successfully')),
@@ -547,7 +589,7 @@ class _LeaveManagementTab extends ConsumerWidget {
       stream: ref.watch(_fsProvider).userLeaves(counsellorId),
       builder: (context, snapshot) {
         final leaves = snapshot.data ?? [];
-        
+
         return Column(
           children: [
             Padding(
@@ -566,13 +608,16 @@ class _LeaveManagementTab extends ConsumerWidget {
                       itemCount: leaves.length,
                       itemBuilder: (context, index) {
                         final leave = leaves[index];
-                        final startDate = DateTime.fromMillisecondsSinceEpoch(leave['startDate']);
-                        final endDate = DateTime.fromMillisecondsSinceEpoch(leave['endDate']);
-                        
+                        final startDate = DateTime.fromMillisecondsSinceEpoch(
+                            leave['startDate']);
+                        final endDate = DateTime.fromMillisecondsSinceEpoch(
+                            leave['endDate']);
+
                         return Card(
                           child: ListTile(
                             title: Text('${leave['leaveType']} Leave'),
-                            subtitle: Text('${DateFormat('MMM d').format(startDate)} - ${DateFormat('MMM d, y').format(endDate)}\n${leave['reason'] ?? ""}'),
+                            subtitle: Text(
+                                '${DateFormat('MMM d').format(startDate)} - ${DateFormat('MMM d, y').format(endDate)}\n${leave['reason'] ?? ""}'),
                             trailing: IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
                               onPressed: () async {
@@ -583,19 +628,23 @@ class _LeaveManagementTab extends ConsumerWidget {
                                     content: const Text('Are you sure?'),
                                     actions: [
                                       TextButton(
-                                        onPressed: () => Navigator.pop(context, false),
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
                                         child: const Text('Cancel'),
                                       ),
                                       TextButton(
-                                        onPressed: () => Navigator.pop(context, true),
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
                                         child: const Text('Delete'),
                                       ),
                                     ],
                                   ),
                                 );
-                                
+
                                 if (confirm == true) {
-                                  await ref.read(_fsProvider).deleteLeave(leave['id']);
+                                  await ref
+                                      .read(_fsProvider)
+                                      .deleteLeave(leave['id']);
                                 }
                               },
                             ),
@@ -618,7 +667,8 @@ class _CounsellorProfileTab extends ConsumerStatefulWidget {
   final String userId;
 
   @override
-  ConsumerState<_CounsellorProfileTab> createState() => _CounsellorProfileTabState();
+  ConsumerState<_CounsellorProfileTab> createState() =>
+      _CounsellorProfileTabState();
 }
 
 class _CounsellorProfileTabState extends ConsumerState<_CounsellorProfileTab> {
@@ -655,7 +705,8 @@ class _CounsellorProfileTabState extends ConsumerState<_CounsellorProfileTab> {
             TextField(
               controller: confirmController,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'Confirm New Password'),
+              decoration:
+                  const InputDecoration(labelText: 'Confirm New Password'),
             ),
           ],
         ),
@@ -672,24 +723,27 @@ class _CounsellorProfileTabState extends ConsumerState<_CounsellorProfileTab> {
                 );
                 return;
               }
-              
+
               final regex = RegExp(r'^(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$');
               if (!regex.hasMatch(newController.text)) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Password must be at least 8 characters with 1 special character')),
+                  const SnackBar(
+                      content: Text(
+                          'Password must be at least 8 characters with 1 special character')),
                 );
                 return;
               }
 
               try {
                 await ref.read(authServiceProvider).changePassword(
-                  currentPassword: currentController.text,
-                  newPassword: newController.text,
-                );
+                      currentPassword: currentController.text,
+                      newPassword: newController.text,
+                    );
                 if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Password changed successfully')),
+                    const SnackBar(
+                        content: Text('Password changed successfully')),
                   );
                 }
               } catch (e) {
@@ -710,7 +764,7 @@ class _CounsellorProfileTabState extends ConsumerState<_CounsellorProfileTab> {
   Future<void> _saveProfile(UserProfile profile) async {
     final fs = ref.read(_fsProvider);
     final auth = ref.read(authServiceProvider);
-    
+
     try {
       await auth.updateDisplayName(_nameController.text.trim());
       await fs.updateUserProfile(
@@ -721,7 +775,7 @@ class _CounsellorProfileTabState extends ConsumerState<_CounsellorProfileTab> {
           'expertise': _expertiseController.text.trim(),
         },
       );
-      
+
       if (mounted) {
         setState(() => _isEditing = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -747,7 +801,7 @@ class _CounsellorProfileTabState extends ConsumerState<_CounsellorProfileTab> {
         }
 
         final profile = snapshot.data!;
-        
+
         if (!_isEditing) {
           _nameController.text = profile.displayName;
           _designationController.text = profile.designation ?? '';
@@ -769,7 +823,8 @@ class _CounsellorProfileTabState extends ConsumerState<_CounsellorProfileTab> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: TextEditingController(text: profile.email),
-                    decoration: const InputDecoration(labelText: 'Email (read-only)'),
+                    decoration:
+                        const InputDecoration(labelText: 'Email (read-only)'),
                     enabled: false,
                   ),
                   const SizedBox(height: 12),

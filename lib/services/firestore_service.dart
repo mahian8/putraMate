@@ -193,7 +193,8 @@ class FirestoreService {
 
     // If session completed, send review notifications
     if (status == AppointmentStatus.completed) {
-      final appt = await _firestore.collection('appointments').doc(appointmentId).get();
+      final appt =
+          await _firestore.collection('appointments').doc(appointmentId).get();
       if (appt.exists) {
         final data = appt.data()!;
         final studentId = data['studentId'] as String;
@@ -261,14 +262,12 @@ class FirestoreService {
         .where('role', isEqualTo: UserRole.counsellor.name)
         .snapshots()
         .map((snap) {
-          print('✓ Counsellors query returned ${snap.docs.length} documents');
-          return snap.docs
-              .map((doc) {
-                print('  - Counsellor: ${doc.data()['displayName']} (${doc.id})');
-                return UserProfile.fromJson(doc.data());
-              })
-              .toList();
-        });
+      print('✓ Counsellors query returned ${snap.docs.length} documents');
+      return snap.docs.map((doc) {
+        print('  - Counsellor: ${doc.data()['displayName']} (${doc.id})');
+        return UserProfile.fromJson(doc.data());
+      }).toList();
+    });
   }
 
   Future<void> deleteUserProfile(String uid) {
@@ -281,9 +280,8 @@ class FirestoreService {
         .collection('users')
         .where('role', isEqualTo: UserRole.student.name)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => UserProfile.fromJson(doc.data()))
-            .toList());
+        .map((snap) =>
+            snap.docs.map((doc) => UserProfile.fromJson(doc.data())).toList());
   }
 
   // Admin: Get all appointments
@@ -298,7 +296,8 @@ class FirestoreService {
   }
 
   // Admin: Reassign appointment to different counsellor
-  Future<void> reassignAppointment(String appointmentId, String newCounsellorId) {
+  Future<void> reassignAppointment(
+      String appointmentId, String newCounsellorId) {
     return _firestore.collection('appointments').doc(appointmentId).update({
       'counsellorId': newCounsellorId,
       'participants': FieldValue.arrayUnion([newCounsellorId]),
@@ -307,7 +306,8 @@ class FirestoreService {
   }
 
   // Admin: Update appointment date/time
-  Future<void> rescheduleAppointment(String appointmentId, DateTime newStart, DateTime newEnd) {
+  Future<void> rescheduleAppointment(
+      String appointmentId, DateTime newStart, DateTime newEnd) {
     return _firestore.collection('appointments').doc(appointmentId).update({
       'start': newStart.millisecondsSinceEpoch,
       'end': newEnd.millisecondsSinceEpoch,
@@ -344,9 +344,8 @@ class FirestoreService {
         .where('userId', isEqualTo: userId)
         .orderBy('startDate', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => {'id': doc.id, ...doc.data()})
-            .toList());
+        .map((snap) =>
+            snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList());
   }
 
   Future<void> deleteLeave(String leaveId) {
@@ -420,11 +419,8 @@ class FirestoreService {
     required String userName,
     required String content,
   }) async {
-    final commentRef = _firestore
-        .collection('forum')
-        .doc(postId)
-        .collection('comments')
-        .doc();
+    final commentRef =
+        _firestore.collection('forum').doc(postId).collection('comments').doc();
 
     await commentRef.set({
       'userId': userId,
@@ -447,9 +443,8 @@ class FirestoreService {
         .orderBy('createdAt', descending: true)
         .limit(10)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => {'id': doc.id, ...doc.data()})
-            .toList());
+        .map((snap) =>
+            snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList());
   }
 
   Stream<List<ChatMessage>> chatMessages(String threadId) {
@@ -494,7 +489,8 @@ class FirestoreService {
         .orderBy('timestamp', descending: false)
         .limit(100)
         .snapshots()
-        .map((snap) => snap.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList());
+        .map((snap) =>
+            snap.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList());
   }
 
   Future<void> saveChatMessage({
@@ -508,11 +504,11 @@ class FirestoreService {
         .doc(userId)
         .collection('chatHistory')
         .add({
-          'sender': sender,
-          'text': text,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-          if (sentiment != null) 'sentiment': sentiment,
-        });
+      'sender': sender,
+      'text': text,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      if (sentiment != null) 'sentiment': sentiment,
+    });
   }
 
   // Flag high-risk students for counsellor review
@@ -541,7 +537,8 @@ class FirestoreService {
         .where('resolved', isEqualTo: false)
         .orderBy('flaggedAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList());
+        .map((snap) =>
+            snap.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList());
   }
 
   // Mark flag as resolved
@@ -559,7 +556,8 @@ class FirestoreService {
         .where('studentId', isEqualTo: studentId)
         .orderBy('flaggedAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList());
+        .map((snap) =>
+            snap.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList());
   }
 
   // Get students assigned to a specific counsellor
@@ -623,20 +621,16 @@ class FirestoreService {
   }
 
   // Update user profile
-  Future<void> updateUserProfile({required String uid, required Map<String, dynamic> data}) {
+  Future<void> updateUserProfile(
+      {required String uid, required Map<String, dynamic> data}) {
     return _firestore.collection('users').doc(uid).update(data);
   }
 
   // Get user profile stream
   Stream<UserProfile?> userProfile(String userId) {
-    return _firestore
-        .collection('users')
-        .doc(userId)
-        .snapshots()
-        .map((snap) {
-          if (!snap.exists) return null;
-          return UserProfile.fromJson({...snap.data()!, 'uid': snap.id});
-        });
+    return _firestore.collection('users').doc(userId).snapshots().map((snap) {
+      if (!snap.exists) return null;
+      return UserProfile.fromJson({...snap.data()!, 'uid': snap.id});
+    });
   }
 }
-

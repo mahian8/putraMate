@@ -22,7 +22,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   final _medicalConditionsController = TextEditingController();
   final _emergencyContactController = TextEditingController();
   final _emergencyPhoneController = TextEditingController();
-  
+
   bool _savingProfile = false;
   bool _changingPassword = false;
 
@@ -112,7 +112,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Account Section
-                  Text('Account', style: Theme.of(context).textTheme.headlineSmall),
+                  Text('Account',
+                      style: Theme.of(context).textTheme.headlineSmall),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _nameController,
@@ -141,7 +142,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   const SizedBox(height: 24),
 
                   // Personal Details Section
-                  Text('Personal Details', style: Theme.of(context).textTheme.titleMedium),
+                  Text('Personal Details',
+                      style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _studentIdController,
@@ -178,7 +180,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   const SizedBox(height: 24),
 
                   // Medical Information Section
-                  Text('Medical Information', style: Theme.of(context).textTheme.titleMedium),
+                  Text('Medical Information',
+                      style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _bloodTypeController,
@@ -208,7 +211,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   const SizedBox(height: 24),
 
                   // Emergency Contact Section
-                  Text('Emergency Contact', style: Theme.of(context).textTheme.titleMedium),
+                  Text('Emergency Contact',
+                      style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _emergencyContactController,
@@ -241,7 +245,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               ),
                             )
                           : const Icon(Icons.save),
-                      label: Text(_savingProfile ? 'Saving...' : 'Save Profile'),
+                      label:
+                          Text(_savingProfile ? 'Saving...' : 'Save Profile'),
                       onPressed: _savingProfile ? null : _saveProfile,
                     ),
                   ),
@@ -261,8 +266,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       label: Text(
                         _changingPassword ? 'Updating...' : 'Change Password',
                       ),
-                      onPressed:
-                          _changingPassword ? null : () => _showChangePasswordDialog(context),
+                      onPressed: _changingPassword
+                          ? null
+                          : () => _showChangePasswordDialog(context),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -273,7 +279,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     child: TextButton.icon(
                       icon: const Icon(Icons.logout),
                       label: const Text('Sign out'),
-                      onPressed: () async => ref.read(authServiceProvider).signOut(),
+                      onPressed: () async =>
+                          ref.read(authServiceProvider).signOut(),
                     ),
                   ),
                 ],
@@ -300,21 +307,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               TextField(
                 controller: currentController,
                 obscureText: true,
-                decoration: const InputDecoration(labelText: 'Current Password'),
+                decoration:
+                    const InputDecoration(labelText: 'Current Password'),
               ),
               TextField(
                 controller: newController,
                 obscureText: true,
-                    decoration: const InputDecoration(labelText: 'New Password'),
+                decoration: const InputDecoration(labelText: 'New Password'),
               ),
-                  const SizedBox(height: 8),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Use at least 8 characters and include a special character.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ),
+              const SizedBox(height: 8),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Use at least 8 characters and include a special character.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
             ],
           ),
           actions: [
@@ -344,10 +352,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
 
     final hasMinLength = newPwd.length >= 8;
-    final hasSpecialChar = RegExp(r'[!@#\$%^&*(),.?":{}|<>_\-\\/\[\];\'"'"'`~+=]').hasMatch(newPwd);
+    final hasSpecialChar =
+        RegExp(r'[!@#\$%^&*(),.?":{}|<>_\-\\/\[\];\' "'" '`~+=]')
+            .hasMatch(newPwd);
     if (!hasMinLength || !hasSpecialChar) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password must be at least 8 characters and include a special character.')),
+        const SnackBar(
+            content: Text(
+                'Password must be at least 8 characters and include a special character.')),
       );
       return;
     }

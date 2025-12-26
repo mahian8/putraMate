@@ -9,13 +9,15 @@ import '../common/common_widgets.dart';
 import 'counsellor_detail_page.dart';
 
 class BookingCalendarPage extends ConsumerStatefulWidget {
-  const BookingCalendarPage({super.key, this.counsellorId, this.counsellorName});
+  const BookingCalendarPage(
+      {super.key, this.counsellorId, this.counsellorName});
 
   final String? counsellorId;
   final String? counsellorName;
 
   @override
-  ConsumerState<BookingCalendarPage> createState() => _BookingCalendarPageState();
+  ConsumerState<BookingCalendarPage> createState() =>
+      _BookingCalendarPageState();
 }
 
 class _BookingCalendarPageState extends ConsumerState<BookingCalendarPage> {
@@ -72,7 +74,9 @@ class _BookingCalendarPageState extends ConsumerState<BookingCalendarPage> {
   }
 
   Future<void> _checkAvailability() async {
-    if (_selectedCounsellorId.isEmpty || _selectedDate == null || _selectedTime == null) {
+    if (_selectedCounsellorId.isEmpty ||
+        _selectedDate == null ||
+        _selectedTime == null) {
       return;
     }
 
@@ -104,7 +108,7 @@ class _BookingCalendarPageState extends ConsumerState<BookingCalendarPage> {
 
   Future<void> _selectCounsellor() async {
     final fs = FirestoreService();
-    
+
     if (!mounted) return;
 
     await showDialog<UserProfile>(
@@ -237,7 +241,9 @@ class _BookingCalendarPageState extends ConsumerState<BookingCalendarPage> {
       return;
     }
 
-    if (_selectedCounsellorId.isEmpty || _selectedDate == null || _selectedTime == null) {
+    if (_selectedCounsellorId.isEmpty ||
+        _selectedDate == null ||
+        _selectedTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Select counsellor, date, and time')),
       );
@@ -294,7 +300,9 @@ class _BookingCalendarPageState extends ConsumerState<BookingCalendarPage> {
         sentiment: sentiment,
         riskLevel: risk,
         sessionType: _sessionType,
-        initialProblem: _initialProblem.text.trim().isEmpty ? null : _initialProblem.text.trim(),
+        initialProblem: _initialProblem.text.trim().isEmpty
+            ? null
+            : _initialProblem.text.trim(),
       );
 
       if (mounted) {
@@ -446,13 +454,15 @@ class _BookingCalendarPageState extends ConsumerState<BookingCalendarPage> {
                         ),
                         const SizedBox(height: 8),
                         ..._availabilityIssues.map((issue) => Text(
-                          '• $issue',
-                          style: TextStyle(color: Colors.red.shade700),
-                        )),
+                              '• $issue',
+                              style: TextStyle(color: Colors.red.shade700),
+                            )),
                       ],
                     ),
                   ),
-                if (_availabilityIssues.isEmpty && _selectedDate != null && _selectedTime != null)
+                if (_availabilityIssues.isEmpty &&
+                    _selectedDate != null &&
+                    _selectedTime != null)
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
@@ -467,7 +477,8 @@ class _BookingCalendarPageState extends ConsumerState<BookingCalendarPage> {
                         const SizedBox(width: 8),
                         const Text(
                           'Time slot is available',
-                          style: TextStyle(color: Colors.green, fontWeight: FontWeight.w500),
+                          style: TextStyle(
+                              color: Colors.green, fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
@@ -477,8 +488,12 @@ class _BookingCalendarPageState extends ConsumerState<BookingCalendarPage> {
                   value: _sessionType,
                   decoration: const InputDecoration(labelText: 'Session Type'),
                   items: const [
-                    DropdownMenuItem(value: SessionType.online, child: Text('Online (Google Meet)')),
-                    DropdownMenuItem(value: SessionType.faceToFace, child: Text('Face-to-Face')),
+                    DropdownMenuItem(
+                        value: SessionType.online,
+                        child: Text('Online (Google Meet)')),
+                    DropdownMenuItem(
+                        value: SessionType.faceToFace,
+                        child: Text('Face-to-Face')),
                   ],
                   onChanged: (value) {
                     if (value != null) setState(() => _sessionType = value);
@@ -496,17 +511,21 @@ class _BookingCalendarPageState extends ConsumerState<BookingCalendarPage> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _topic,
-                  decoration: const InputDecoration(labelText: 'Topic (optional)'),
+                  decoration:
+                      const InputDecoration(labelText: 'Topic (optional)'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _notes,
                   maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'Notes for counsellor (sentiment-checked)'),
+                  decoration: const InputDecoration(
+                      labelText: 'Notes for counsellor (sentiment-checked)'),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: (_submitting || _availabilityIssues.isNotEmpty) ? null : _submit,
+                  onPressed: (_submitting || _availabilityIssues.isNotEmpty)
+                      ? null
+                      : _submit,
                   child: _submitting
                       ? const CircularProgressIndicator()
                       : const Text('Send request'),

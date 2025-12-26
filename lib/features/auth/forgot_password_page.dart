@@ -54,7 +54,8 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('We will email you a password reset link.', style: Theme.of(context).textTheme.bodyLarge),
+          Text('We will email you a password reset link.',
+              style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 24),
           if (_error != null)
             Padding(
@@ -62,11 +63,17 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.error.withValues(alpha: 0.1),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .error
+                      .withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Theme.of(context).colorScheme.error),
+                  border:
+                      Border.all(color: Theme.of(context).colorScheme.error),
                 ),
-                child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                child: Text(_error!,
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error)),
               ),
             ),
           if (_sent)
@@ -82,10 +89,13 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Email sent!', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                    Text('Email sent!',
+                        style: const TextStyle(
+                            color: Colors.green, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
-                    Text('Please check your inbox (and spam folder) for a reset link at ${_email.text.trim()}', 
-                         style: const TextStyle(fontSize: 12)),
+                    Text(
+                        'Please check your inbox (and spam folder) for a reset link at ${_email.text.trim()}',
+                        style: const TextStyle(fontSize: 12)),
                   ],
                 ),
               ),

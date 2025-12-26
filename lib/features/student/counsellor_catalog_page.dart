@@ -24,7 +24,7 @@ class CounsellorCatalogPage extends ConsumerWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          
+
           if (snapshot.hasError) {
             return Center(
               child: Column(
@@ -42,7 +42,7 @@ class CounsellorCatalogPage extends ConsumerWidget {
               ),
             );
           }
-          
+
           final counsellors = snapshot.data ?? [];
 
           if (counsellors.isEmpty) {

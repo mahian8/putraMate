@@ -55,7 +55,9 @@ class _CounsellorDetailPageState extends State<CounsellorDetailPage> {
                       ),
                       const SizedBox(height: 8),
                       if (widget.counsellor.expertise != null) ...[
-                        Chip(label: Text('Expertise: ${widget.counsellor.expertise}')),
+                        Chip(
+                            label: Text(
+                                'Expertise: ${widget.counsellor.expertise}')),
                         const SizedBox(height: 8),
                       ],
                       if (widget.counsellor.designation != null)
@@ -129,7 +131,9 @@ class _CounsellorDetailPageState extends State<CounsellorDetailPage> {
                                     (i) => Icon(
                                       Icons.star,
                                       size: 18,
-                                      color: i < (review.studentRating?.toInt() ?? 0)
+                                      color: i <
+                                              (review.studentRating?.toInt() ??
+                                                  0)
                                           ? Colors.amber
                                           : Colors.grey.shade300,
                                     ),
@@ -137,7 +141,8 @@ class _CounsellorDetailPageState extends State<CounsellorDetailPage> {
                                   const SizedBox(width: 8),
                                   Text(
                                     '${review.studentRating?.toStringAsFixed(1) ?? "N/A"}/5',
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold),
                                   ),
                                 ],
                               ),

@@ -1,4 +1,5 @@
 enum AppointmentStatus { pending, confirmed, completed, cancelled }
+
 enum SessionType { online, faceToFace }
 
 class Appointment {

@@ -16,19 +16,22 @@ class AuthService {
 
   Future<UserCredential> signIn(String email, String password) async {
     try {
-      final cred = await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final cred = await _auth.signInWithEmailAndPassword(
+          email: email, password: password);
       print('✓ Auth successful for: $email');
 
       // Fetch role for logging
       String? role;
       try {
-        final doc = await _firestore.collection('users').doc(cred.user?.uid).get();
+        final doc =
+            await _firestore.collection('users').doc(cred.user?.uid).get();
         print('✓ User doc fetched: exists=${doc.exists}');
         role = (doc.data()?['role'] as String?);
         print('✓ Role fetched: $role');
-        
+
         // Auto-create admin profile if logging in with @admin.com domain and no profile exists
-        if (email.toLowerCase().endsWith('@admin.com') && (!doc.exists || role != 'admin')) {
+        if (email.toLowerCase().endsWith('@admin.com') &&
+            (!doc.exists || role != 'admin')) {
           print('→ Creating admin profile...');
           await _firestore.collection('users').doc(cred.user?.uid).set({
             'uid': cred.user?.uid,
@@ -114,26 +117,27 @@ class AuthService {
     String? emergencyContact,
     String? emergencyContactPhone,
   }) async {
-    final cred = await _auth.createUserWithEmailAndPassword(email: email, password: password);
+    final cred = await _auth.createUserWithEmailAndPassword(
+        email: email, password: password);
     await cred.user?.updateDisplayName(displayName);
     await _firestore.collection('users').doc(cred.user!.uid).set(
-      UserProfile(
-        uid: cred.user!.uid,
-        email: email,
-        displayName: displayName,
-        role: UserRole.student,
-        studentId: studentId,
-        phoneNumber: phoneNumber,
-        dateOfBirth: dateOfBirth,
-        gender: gender,
-        bloodType: bloodType,
-        allergies: allergies,
-        medicalConditions: medicalConditions,
-        emergencyContact: emergencyContact,
-        emergencyContactPhone: emergencyContactPhone,
-      ).toJson(),
-      SetOptions(merge: true),
-    );
+          UserProfile(
+            uid: cred.user!.uid,
+            email: email,
+            displayName: displayName,
+            role: UserRole.student,
+            studentId: studentId,
+            phoneNumber: phoneNumber,
+            dateOfBirth: dateOfBirth,
+            gender: gender,
+            bloodType: bloodType,
+            allergies: allergies,
+            medicalConditions: medicalConditions,
+            emergencyContact: emergencyContact,
+            emergencyContactPhone: emergencyContactPhone,
+          ).toJson(),
+          SetOptions(merge: true),
+        );
     return cred;
   }
 
@@ -143,14 +147,14 @@ class AuthService {
     required String uid,
   }) async {
     await _firestore.collection('users').doc(uid).set(
-      UserProfile(
-        uid: uid,
-        email: email,
-        displayName: displayName,
-        role: UserRole.counsellor,
-      ).toJson(),
-      SetOptions(merge: true),
-    );
+          UserProfile(
+            uid: uid,
+            email: email,
+            displayName: displayName,
+            role: UserRole.counsellor,
+          ).toJson(),
+          SetOptions(merge: true),
+        );
   }
 
   // Admin: Create counsellor with temporary password
@@ -166,16 +170,16 @@ class AuthService {
     final currentUser = _auth.currentUser;
     if (currentUser == null) throw 'Not signed in as admin';
     final adminEmail = currentUser.email!;
-    
+
     print('→ Creating counsellor account for: $email');
-    
+
     // Create auth account for counsellor (this will sign us in as the counsellor)
     final userCred = await _auth.createUserWithEmailAndPassword(
       email: email,
       password: password,
     );
     final uid = userCred.user!.uid;
-    
+
     print('✓ Auth account created: $uid');
 
     // Create Firestore profile for counsellor
@@ -191,16 +195,16 @@ class AuthService {
       'isActive': true,
       'createdAt': DateTime.now().millisecondsSinceEpoch,
     });
-    
+
     print('✓ Firestore profile created');
 
     // Sign out the newly created counsellor
     await _auth.signOut();
     print('→ Signed out counsellor, admin will need to re-authenticate');
-    
+
     // Note: Admin will be signed out and redirected to login
     // The admin dashboard should handle this gracefully
-    
+
     return uid;
   }
 
@@ -217,9 +221,9 @@ class AuthService {
 
     await user.updateDisplayName(displayName);
     await _firestore.collection('users').doc(user.uid).set(
-          {'displayName': displayName},
-          SetOptions(merge: true),
-        );
+      {'displayName': displayName},
+      SetOptions(merge: true),
+    );
   }
 
   Future<void> changePassword({
@@ -238,7 +242,7 @@ class AuthService {
 
     await user.reauthenticateWithCredential(credential);
     await user.updatePassword(newPassword);
-    
+
     // Clear password change requirement
     await _firestore.collection('users').doc(user.uid).update({
       'requirePasswordChange': false,
