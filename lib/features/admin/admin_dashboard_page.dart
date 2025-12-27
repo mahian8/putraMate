@@ -110,7 +110,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                 _ManageCounsellorsTab(),
                 _ManageAppointmentsTab(),
                 _LeaveManagementTab(),
-                CommunityForumPage(),
+                CommunityForumPage(embedded: true),
               ],
             ),
           ),
@@ -137,7 +137,16 @@ class _TabButton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(4.0),
       child: ActionChip(
-        label: Text(label),
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              const Icon(Icons.check_circle, size: 16),
+              const SizedBox(width: 6),
+            ],
+            Text(label),
+          ],
+        ),
         onPressed: onTap,
         backgroundColor:
             selected ? Theme.of(context).colorScheme.primaryContainer : null,
@@ -235,63 +244,35 @@ class _AddCounsellorTabState extends ConsumerState<_AddCounsellorTab> {
           );
 
       if (mounted) {
-        // Show success dialog explaining the admin needs to sign back in
+        // Simple success popup; keep admin logged in
         await showDialog(
           context: context,
-          barrierDismissible: false,
           builder: (context) => AlertDialog(
             title: const Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 32),
-                SizedBox(width: 12),
-                Text('Counsellor Created!'),
+                Icon(Icons.check_circle, color: Colors.green, size: 28),
+                SizedBox(width: 8),
+                Text('Counsellor Created'),
               ],
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Successfully created: ${_nameController.text.trim()}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Due to Firebase security, you have been signed out and need to log back in as admin to continue.',
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Counsellor credentials:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                          'The counsellor can now log in and will be prompted to change their temporary password.'),
-                    ],
-                  ),
-                ),
-              ],
+            content: Text(
+              'Successfully created: ${_nameController.text.trim()}. The counsellor can now log in and will be prompted to change their temporary password.',
             ),
             actions: [
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  // User will be redirected to login by auth state change
-                },
-                child: const Text('OK - Go to Login'),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
               ),
             ],
           ),
         );
+        setState(() => _loading = false);
+        _nameController.clear();
+        _emailController.clear();
+        _counsellorIdController.clear();
+        _designationController.clear();
+        _expertiseController.clear();
+        _passwordController.clear();
       }
     } catch (e) {
       if (mounted) {
@@ -681,6 +662,11 @@ class _ManageCounsellorsTab extends ConsumerWidget {
               leading: const Icon(Icons.psychology, color: Colors.purple),
               title: Text(counsellor.displayName),
               subtitle: Text(counsellor.email),
+              trailing: IconButton(
+                icon: const Icon(Icons.info_outline),
+                tooltip: 'View Details',
+                onPressed: () => _showCounsellorDetails(context, counsellor),
+              ),
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -751,6 +737,89 @@ class _ManageCounsellorsTab extends ConsumerWidget {
       },
     );
   }
+
+  void _showCounsellorDetails(BuildContext context, UserProfile counsellor) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Counsellor Details'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 32,
+                child: Text(
+                  counsellor.displayName[0].toUpperCase(),
+                  style: const TextStyle(
+                      fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _DetailRow(label: 'Name', value: counsellor.displayName),
+              _DetailRow(label: 'Email', value: counsellor.email),
+              if (counsellor.counsellorId != null)
+                _DetailRow(
+                    label: 'Counsellor ID', value: counsellor.counsellorId!),
+              if (counsellor.designation != null)
+                _DetailRow(
+                    label: 'Designation', value: counsellor.designation!),
+              if (counsellor.expertise != null)
+                _DetailRow(label: 'Expertise', value: counsellor.expertise!),
+              _DetailRow(
+                label: 'Account Status',
+                value: counsellor.isActive != false ? 'Active' : 'Inactive',
+              ),
+              _DetailRow(label: 'User ID', value: counsellor.uid),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            width: double.maxFinite,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ManageAppointmentsTab extends ConsumerWidget {
@@ -807,7 +876,104 @@ class _ManageAppointmentsTab extends ConsumerWidget {
                                 content: Text('Appointment deleted')));
                       }
                     }
-                    // TODO: Implement reschedule and reassign dialogs
+                    if (value == 'reschedule') {
+                      DateTime? newStart = apt.start;
+                      DateTime? newEnd = apt.end;
+                      // Pick new date
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: apt.start,
+                        firstDate:
+                            DateTime.now().subtract(const Duration(days: 1)),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date == null) return;
+                      // Pick start time
+                      final startTime = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(apt.start),
+                      );
+                      if (startTime == null) return;
+                      // Pick end time
+                      final endTime = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(apt.end),
+                      );
+                      if (endTime == null) return;
+
+                      newStart = DateTime(
+                        date.year,
+                        date.month,
+                        date.day,
+                        startTime.hour,
+                        startTime.minute,
+                      );
+                      newEnd = DateTime(
+                        date.year,
+                        date.month,
+                        date.day,
+                        endTime.hour,
+                        endTime.minute,
+                      );
+
+                      await firestore.rescheduleAppointment(
+                          apt.id, newStart, newEnd);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Appointment rescheduled')),
+                        );
+                      }
+                    }
+                    if (value == 'reassign') {
+                      // Pick counsellor
+                      final counsellors = await firestore.counsellors().first;
+                      String? selectedId;
+                      await showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Reassign Counsellor'),
+                          content: SizedBox(
+                            width: double.maxFinite,
+                            child: DropdownButtonFormField<String>(
+                              value: selectedId,
+                              items: counsellors
+                                  .map((c) => DropdownMenuItem(
+                                        value: c.uid,
+                                        child: Text(c.displayName),
+                                      ))
+                                  .toList(),
+                              onChanged: (v) => selectedId = v,
+                              decoration: const InputDecoration(
+                                labelText: 'Select counsellor',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () async {
+                                if (selectedId == null) return;
+                                await firestore.reassignAppointment(
+                                    apt.id, selectedId!);
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text('Counsellor reassigned')),
+                                  );
+                                }
+                              },
+                              child: const Text('Save'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
                   },
                 ),
               ),

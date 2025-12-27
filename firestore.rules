@@ -68,24 +68,45 @@ service cloud.firestore {
       
       // Mood entries - private to student
       match /moods/{moodId} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
+          allow read: if isSignedIn() && (
+           request.auth.uid == userId || 
+           isCounsellor() ||
+           isAdmin()
+          );
+          allow write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Notifications subcollection - user-specific notifications
+      match /notifications/{notificationId} {
+        // Only the owner can read/list their notifications
+        allow read, list: if isSignedIn() && request.auth.uid == userId;
+        // Creation allowed by the owner, counsellors, or admins
+        allow create: if isSignedIn() && (
+          request.auth.uid == userId || isCounsellor() || isAdmin()
+        );
+        // Updates (e.g., mark read) allowed by the owner; deletes by admin
+        allow update: if isSignedIn() && request.auth.uid == userId;
+        allow delete: if isSignedIn() && isAdmin();
       }
     }
     
     // Appointments
     match /appointments/{appointmentId} {
-      // Allow listing appointments for queries
-      allow list: if isSignedIn() && (
-        // Query constraint must filter for the requesting user's appointments or approved reviews
-        request.query.limit <= 200
-      );
+      // Allow listing appointments for queries by participants, studentId, or counsellorId
+      allow list: if isSignedIn();
       
       allow read: if isSignedIn() && (
         resource.data.studentId == request.auth.uid ||
         resource.data.counsellorId == request.auth.uid ||
-        isAdmin() ||
-        // Allow students to view approved reviews for counsellor detail page
-        (isStudent() && resource.data.isReviewApproved == true && resource.data.status == 'completed')
+        (resource.data.keys().hasAny(['participants']) && 
+         resource.data.participants.hasAny([request.auth.uid])) ||
+        // Allow students to read any appointment that contains a review (rating or comment)
+        // This enables universal visibility of reviews regardless of status,
+        // while Firestore still filters to only docs that match this condition.
+        (isStudent() &&
+         (resource.data.studentRating > 0 ||
+          resource.data.studentComment != null)) ||
+        isAdmin()
       );
       
       // Students can create appointments
@@ -104,10 +125,18 @@ service cloud.firestore {
     match /forum/{postId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && (
+      // Allow post author or admin to update/delete; additionally allow updates
+      // that only change likes/commentCount by any authenticated user
+      allow update: if isSignedIn() && (
         resource.data.authorId == request.auth.uid || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        isAdmin() ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount'])) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'commentCount']))
+      );
+
+      allow delete: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid || isAdmin()
       );
       
       // Forum comments - authenticated users can read and write
@@ -182,7 +211,8 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
-        isAdmin()
+        isAdmin() ||
+        isStudent()
       );
       allow create, update, delete: if isSignedIn() && (
         isCounsellor() || isAdmin()

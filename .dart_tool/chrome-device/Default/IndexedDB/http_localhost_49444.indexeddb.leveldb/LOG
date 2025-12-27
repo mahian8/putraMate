@@ -1,6 +1,21 @@
-2025/12/26-21:19:49.549 1990ce Creating DB /private/var/folders/yy/tshtzv112g92x_25tl7_v1b40000gn/T/flutter_tools.9nfyI6/flutter_tools_chrome_device.fHPltG/Default/IndexedDB/http_localhost_49444.indexeddb.leveldb since it was missing.
-2025/12/26-21:19:49.553 1990ce Reusing MANIFEST /private/var/folders/yy/tshtzv112g92x_25tl7_v1b40000gn/T/flutter_tools.9nfyI6/flutter_tools_chrome_device.fHPltG/Default/IndexedDB/http_localhost_49444.indexeddb.leveldb/MANIFEST-000001
-2025/12/26-21:19:49.559 1990e6 Level-0 table #5: started
-2025/12/26-21:19:49.561 1990e6 Level-0 table #5: 1309 bytes OK
-2025/12/26-21:19:49.562 1990e6 Delete type=0 #3
-2025/12/26-21:19:49.562 1990e3 Manual compaction at level-0 from '\x00\x01\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x02\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/12/27-17:29:28.180 24fee8 Reusing MANIFEST /private/var/folders/yy/tshtzv112g92x_25tl7_v1b40000gn/T/flutter_tools.hStv8w/flutter_tools_chrome_device.TSf1if/Default/IndexedDB/http_localhost_49444.indexeddb.leveldb/MANIFEST-000001
+2025/12/27-17:29:28.186 24fee8 Recovering log #3
+2025/12/27-17:29:28.187 24fee8 Reusing old log /private/var/folders/yy/tshtzv112g92x_25tl7_v1b40000gn/T/flutter_tools.hStv8w/flutter_tools_chrome_device.TSf1if/Default/IndexedDB/http_localhost_49444.indexeddb.leveldb/000003.log 
+2025/12/27-17:29:28.191 24fee8 Level-0 table #5: started
+2025/12/27-17:29:28.193 24fee8 Level-0 table #5: 7098 bytes OK
+2025/12/27-17:29:28.194 24fee8 Delete type=0 #3
+2025/12/27-17:29:28.194 24fee6 Manual compaction at level-0 from '\x00\x04\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x05\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/12/27-17:36:44.869 24fee8 Level-0 table #7: started
+2025/12/27-17:36:44.870 24fee8 Level-0 table #7: 8635 bytes OK
+2025/12/27-17:36:44.870 24fee8 Delete type=0 #4
+2025/12/27-17:36:44.871 24fee6 Manual compaction at level-0 from '\x00\x05\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x06\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/12/27-17:37:59.278 24fee8 Compacting 1@1 + 1@2 files
+2025/12/27-17:37:59.283 24fee8 Generated table #8@1: 40 keys, 2969 bytes
+2025/12/27-17:37:59.283 24fee8 Compacted 1@1 + 1@2 files => 2969 bytes
+2025/12/27-17:37:59.284 24fee8 compacted to: files[ 0 0 1 0 0 0 0 ]
+2025/12/27-17:37:59.285 24fee8 Delete type=2 #7
+2025/12/27-17:37:59.285 24fee8 Delete type=2 #5
+2025/12/27-17:41:57.820 24fefe Level-0 table #10: started
+2025/12/27-17:41:57.828 24fefe Level-0 table #10: 3336 bytes OK
+2025/12/27-17:41:57.829 24fefe Delete type=0 #6
+2025/12/27-17:41:57.829 24fee6 Manual compaction at level-0 from '\x00\x06\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x07\x00\x00\x00' @ 0 : 0; will stop at (end)

@@ -49,11 +49,36 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
     try {
       final note = _noteController.text.trim();
       
-      // Analyze sentiment
+      // Analyze sentiment with AI, then apply simple keyword fallback
       Map<String, dynamic> sentiment = {};
       if (note.isNotEmpty) {
         final gemini = ref.read(geminiServiceProvider);
         sentiment = await gemini.analyzeSentiment(note);
+
+        // Fallback heuristic if AI returns neutral/low
+        if ((sentiment['sentiment'] ?? 'neutral') == 'neutral') {
+          final lower = note.toLowerCase();
+          final criticalWords = ['suicide', 'kill myself', 'end my life'];
+          final highWords = ['hopeless', 'worthless', 'panic', 'panic attack'];
+          final mediumWords = ['anxious', 'depressed', 'sad', 'lonely', 'stressed'];
+
+          if (criticalWords.any((w) => lower.contains(w))) {
+            sentiment = {
+              'sentiment': 'concerning',
+              'riskLevel': 'critical',
+            };
+          } else if (highWords.any((w) => lower.contains(w))) {
+            sentiment = {
+              'sentiment': 'negative',
+              'riskLevel': 'high',
+            };
+          } else if (mediumWords.any((w) => lower.contains(w))) {
+            sentiment = {
+              'sentiment': 'negative',
+              'riskLevel': 'medium',
+            };
+          }
+        }
       }
 
       final entry = MoodEntry(
@@ -65,7 +90,7 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
         sentiment: sentiment['sentiment'] as String?,
         riskLevel: sentiment['riskLevel'] as String?,
         flaggedForCounsellor: (sentiment['riskLevel'] == 'high' || 
-                               sentiment['riskLevel'] == 'critical'),
+                   sentiment['riskLevel'] == 'critical'),
       );
 
       await ref.read(firestoreServiceProvider).addMoodEntry(entry);

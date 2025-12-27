@@ -21,6 +21,7 @@ class MyAppointmentsPage extends ConsumerWidget {
       );
     }
 
+    // Use appointmentsForUser so the same appointment shows for all participants
     final stream = ref.watch(_fsProvider).appointmentsForUser(user.uid);
 
     return PrimaryScaffold(

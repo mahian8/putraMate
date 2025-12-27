@@ -194,7 +194,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         name: AppRoute.studentInsights.name,
         path: '/counsellor/insights',
-        builder: (context, state) => const StudentInsightsPage(),
+        builder: (context, state) => StudentInsightsPage(
+          studentId: state.uri.queryParameters['sid'] ?? '',
+          counsellorId: state.uri.queryParameters['cid'] ?? '',
+          studentName: state.uri.queryParameters['sname'],
+        ),
       ),
       GoRoute(
         name: AppRoute.availability.name,

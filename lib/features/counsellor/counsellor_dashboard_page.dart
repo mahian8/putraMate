@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
+import '../../router/app_router.dart';
 import '../../models/appointment.dart';
 import '../../models/user_profile.dart';
 import '../../providers/auth_providers.dart';
@@ -20,6 +22,7 @@ class CounsellorDashboardPage extends ConsumerStatefulWidget {
 
 class _CounsellorDashboardPageState
     extends ConsumerState<CounsellorDashboardPage> {
+  int _selectedTab = 0;
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -54,38 +57,104 @@ class _CounsellorDashboardPageState
       );
     }
 
-    final tabs = [
-      const _NextSessionsTab(),
-      _AssignedStudentsTab(counsellorId: user.uid),
-      _LeaveManagementTab(counsellorId: user.uid),
-      _CounsellorProfileTab(userId: user.uid),
-      const CommunityForumPage(),
-    ];
+    // Auto-complete any sessions past end time by 30 minutes for counsellor
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(_fsProvider).autoCompleteExpiredSessionsForUser(user.uid);
+    });
 
-    return DefaultTabController(
-      length: 5,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Counsellor Dashboard'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: _logout,
-              tooltip: 'Logout',
-            ),
-          ],
-          bottom: const TabBar(
-            isScrollable: true,
-            tabs: [
-              Tab(text: 'Next Sessions'),
-              Tab(text: 'Assigned Students'),
-              Tab(text: 'Leave Management'),
-              Tab(text: 'Profile'),
-              Tab(text: 'Community'),
-            ],
-          ),
+    return PrimaryScaffold(
+      title: 'Counsellor Dashboard',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.logout),
+          onPressed: _logout,
+          tooltip: 'Logout',
         ),
-        body: TabBarView(children: tabs),
+      ],
+      body: Column(
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _TabButton(
+                    label: 'Next Sessions',
+                    index: 0,
+                    selected: _selectedTab == 0,
+                    onTap: () => setState(() => _selectedTab = 0)),
+                _TabButton(
+                    label: 'Assigned Students',
+                    index: 1,
+                    selected: _selectedTab == 1,
+                    onTap: () => setState(() => _selectedTab = 1)),
+                _TabButton(
+                    label: 'Leave Management',
+                    index: 2,
+                    selected: _selectedTab == 2,
+                    onTap: () => setState(() => _selectedTab = 2)),
+                _TabButton(
+                    label: 'Profile',
+                    index: 3,
+                    selected: _selectedTab == 3,
+                    onTap: () => setState(() => _selectedTab = 3)),
+                _TabButton(
+                    label: 'Community',
+                    index: 4,
+                    selected: _selectedTab == 4,
+                    onTap: () => setState(() => _selectedTab = 4)),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: IndexedStack(
+              index: _selectedTab,
+              children: [
+                const _NextSessionsTab(),
+                _AssignedStudentsTab(counsellorId: user.uid),
+                _LeaveManagementTab(counsellorId: user.uid),
+                _CounsellorProfileTab(userId: user.uid),
+                const CommunityForumPage(embedded: true),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TabButton extends StatelessWidget {
+  final String label;
+  final int index;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TabButton({
+    required this.label,
+    required this.index,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(4.0),
+      child: ActionChip(
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              const Icon(Icons.check_circle, size: 16),
+              const SizedBox(width: 6),
+            ],
+            Text(label),
+          ],
+        ),
+        onPressed: onTap,
+        backgroundColor:
+            selected ? Theme.of(context).colorScheme.primaryContainer : null,
       ),
     );
   }
@@ -100,7 +169,7 @@ class _NextSessionsTab extends ConsumerWidget {
     final user = ref.watch(authStateProvider).value;
     if (user == null) return const Center(child: Text('Not signed in'));
 
-    final stream = ref.watch(_fsProvider).appointmentsForCounsellor(user.uid);
+    final stream = ref.watch(_fsProvider).appointmentsForUser(user.uid);
 
     return StreamBuilder<List<Appointment>>(
       stream: stream,
@@ -307,6 +376,7 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
           ],
         ),
         trailing: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(widget.appointment.status.name),
@@ -340,8 +410,9 @@ class _AssignedStudentsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final fs = ref.watch(_fsProvider);
 
+    // Use appointments-based derivation to ensure visibility even if student profiles were not updated
     return StreamBuilder<List<UserProfile>>(
-      stream: fs.assignedStudents(counsellorId),
+      stream: fs.assignedStudentsFromAppointments(counsellorId),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -371,75 +442,6 @@ class _StudentCard extends ConsumerWidget {
   final UserProfile student;
   final String counsellorId;
 
-  Future<void> _showStudentDetails(BuildContext context, WidgetRef ref) async {
-    final fs = ref.read(_fsProvider);
-
-    // Fetch risk flags, journals, moods
-    final riskFlags = await fs.highRiskFlags(student.uid).first;
-    final journals = await fs.journalEntries(student.uid).first;
-    final moods = await fs.moodEntries(student.uid).first;
-
-    if (!context.mounted) return;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${student.displayName} Details'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Email: ${student.email}',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-              const Divider(),
-              Text('Date of Birth: ${student.dateOfBirth ?? "N/A"}'),
-              Text('Gender: ${student.gender ?? "N/A"}'),
-              if (student.medicalConditions != null &&
-                  student.medicalConditions!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                const Text('Medical Conditions:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(student.medicalConditions!),
-              ],
-              const Divider(),
-              if (riskFlags.isNotEmpty) ...[
-                const Text('⚠️ Risk Flags:',
-                    style: TextStyle(
-                        color: Colors.red, fontWeight: FontWeight.bold)),
-                ...riskFlags.map((flag) => Text(
-                    '• ${flag['sentiment']} (${flag['riskLevel']}) - ${DateFormat('MMM d').format(DateTime.fromMillisecondsSinceEpoch(flag['flaggedAt']))}')),
-                const Divider(),
-              ],
-              if (journals.isNotEmpty) ...[
-                const Text('Recent Journal Entries:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                ...journals.take(3).map((j) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                          '${DateFormat('MMM d').format(j.createdAt)}: ${j.content.length > 50 ? "${j.content.substring(0, 50)}..." : j.content}'),
-                    )),
-                const Divider(),
-              ],
-              if (moods.isNotEmpty) ...[
-                const Text('Recent Mood Entries:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                ...moods.take(5).map((m) => Text(
-                    '${DateFormat('MMM d').format(m.timestamp)}: Score ${m.moodScore}/10 - ${m.note.length > 30 ? "${m.note.substring(0, 30)}..." : m.note}')),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Card(
@@ -458,7 +460,17 @@ class _StudentCard extends ConsumerWidget {
             );
           },
         ),
-        onTap: () => _showStudentDetails(context, ref),
+        onTap: () {
+          // Navigate to insights page for this student (push to keep back button)
+          context.pushNamed(
+            AppRoute.studentInsights.name,
+            queryParameters: {
+              'sid': student.uid,
+              'cid': counsellorId,
+              'sname': student.displayName,
+            },
+          );
+        },
       ),
     );
   }
@@ -763,10 +775,10 @@ class _CounsellorProfileTabState extends ConsumerState<_CounsellorProfileTab> {
 
   Future<void> _saveProfile(UserProfile profile) async {
     final fs = ref.read(_fsProvider);
-    final auth = ref.read(authServiceProvider);
-
     try {
-      await auth.updateDisplayName(_nameController.text.trim());
+      await ref
+          .read(authServiceProvider)
+          .updateDisplayName(_nameController.text.trim());
       await fs.updateUserProfile(
         uid: widget.userId,
         data: {

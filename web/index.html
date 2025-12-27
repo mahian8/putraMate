@@ -6,6 +6,7 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="PutraMate - UPM Mental Wellness System">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="PutraMate">
   <link rel="apple-touch-icon" href="favicon.png">
@@ -16,18 +17,21 @@
 </head>
 <body>
   <script>
+    // Flutter Web bootstrap
+    let serviceWorkerVersion = null;
     window.addEventListener('load', function() {
-      _flutter.loader.load({
-        serviceWorker: {
-          serviceWorkerVersion: window.serviceWorkerVersion,
+      if (!_flutter || !_flutter.loader) return;
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: { serviceWorkerVersion },
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine().then(function(appRunner) {
+            appRunner.runApp();
+          });
         }
-      }).then(function(engineInitializer) {
-        return engineInitializer.initializeEngine();
-      }).then(function(appRunner) {
-        return appRunner.runApp();
       });
     });
   </script>
-  <script src="flutter_bootstrap.js" async></script>
+  <script src="flutter.js" defer></script>
+  <script src="flutter_bootstrap.js" defer></script>
 </body>
 </html>

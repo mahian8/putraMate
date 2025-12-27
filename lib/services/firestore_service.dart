@@ -58,11 +58,15 @@ class FirestoreService {
     return _firestore
         .collection('appointments')
         .where('participants', arrayContains: userId)
-        .orderBy('start', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => Appointment.fromJson(doc.data(), doc.id))
-            .toList());
+        .map((snap) {
+          final list = snap.docs
+              .map((doc) => Appointment.fromJson(doc.data(), doc.id))
+              .toList();
+          // Sort by start time descending to mimic previous orderBy without requiring an index
+          list.sort((a, b) => b.start.compareTo(a.start));
+          return list;
+        });
   }
 
   Stream<List<Appointment>> appointmentsForCounsellor(String counsellorId) {
@@ -76,10 +80,50 @@ class FirestoreService {
             .toList());
   }
 
+  // Fetch all completed appointments with reviews for a counsellor (visible to all students)
+  Stream<List<Appointment>> counsellorReviews(String counsellorId) {
+    return _firestore
+        .collection('appointments')
+        .where('counsellorId', isEqualTo: counsellorId)
+        .orderBy('start', descending: true)
+        .snapshots()
+        .map((snap) {
+          final appts = snap.docs
+              .map((doc) => Appointment.fromJson(doc.data(), doc.id))
+              .where((a) => (a.studentRating != null && a.studentRating! > 0) ||
+                            (a.studentComment != null))
+              .toList();
+
+          // Debug: log what we received to help trace visibility
+          try {
+            print('✓ counsellorReviews for $counsellorId: ${appts.length} items');
+            for (final a in appts) {
+              print('  - appt ${a.id} student=${a.studentId} rating=${a.studentRating} commentExists=${a.studentComment != null}');
+            }
+          } catch (_) {}
+
+          return appts;
+        });
+  }
+
   Stream<List<Appointment>> appointmentsForStudent(String studentId) {
     return _firestore
         .collection('appointments')
         .where('studentId', isEqualTo: studentId)
+        .orderBy('start', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => Appointment.fromJson(doc.data(), doc.id))
+            .toList());
+  }
+
+  // Counsellor view of a single student's sessions (security-friendly: counsellorId filter)
+  Stream<List<Appointment>> appointmentsForStudentAndCounsellor(
+      {required String studentId, required String counsellorId}) {
+    return _firestore
+        .collection('appointments')
+        .where('studentId', isEqualTo: studentId)
+        .where('counsellorId', isEqualTo: counsellorId)
         .orderBy('start', descending: true)
         .snapshots()
         .map((snap) => snap.docs
@@ -111,46 +155,46 @@ class FirestoreService {
     final startMs = start.millisecondsSinceEpoch;
     final endMs = end.millisecondsSinceEpoch;
 
-    // Check if counsellor is on leave during this time (single-range query, filter in memory)
+    // Check if counsellor is on leave during this time (equality query, filter window in memory)
     final leaveQuery = await _firestore
         .collection('leaves')
         .where('userId', isEqualTo: counsellorId)
-        .where('startDate', isLessThanOrEqualTo: endMs)
         .get();
 
     final onLeave = leaveQuery.docs.any((doc) {
       final data = doc.data();
+      final leaveStart = (data['startDate'] as num?)?.toInt() ?? 0;
       final leaveEnd = (data['endDate'] as num?)?.toInt() ?? 0;
-      return leaveEnd >= startMs;
+      return leaveStart <= endMs && leaveEnd >= startMs;
     });
 
     if (onLeave) {
       throw 'Counsellor is on leave during this time. Please choose another date or counsellor.';
     }
 
-    // Detect duplicates/overlaps for counsellor or student during same window (single-range query, filter in memory)
+    // Detect duplicates/overlaps for counsellor or student during same window (equality query, filter window in memory)
     final conflictQuery = await _firestore
         .collection('appointments')
         .where('counsellorId', isEqualTo: counsellorId)
-        .where('start', isLessThan: endMs)
         .get();
 
     final hasCounsellorConflict = conflictQuery.docs.any((doc) {
       final data = doc.data();
+      final apptStart = (data['start'] as num?)?.toInt() ?? 0;
       final apptEnd = (data['end'] as num?)?.toInt() ?? 0;
-      return apptEnd > startMs;
+      return apptStart < endMs && apptEnd > startMs;
     });
 
     final studentConflictQuery = await _firestore
         .collection('appointments')
         .where('studentId', isEqualTo: studentId)
-        .where('start', isLessThan: endMs)
         .get();
 
     final hasStudentConflict = studentConflictQuery.docs.any((doc) {
       final data = doc.data();
+      final apptStart = (data['start'] as num?)?.toInt() ?? 0;
       final apptEnd = (data['end'] as num?)?.toInt() ?? 0;
-      return apptEnd > startMs;
+      return apptStart < endMs && apptEnd > startMs;
     });
 
     final isDuplicate = hasCounsellorConflict || hasStudentConflict;
@@ -173,6 +217,16 @@ class FirestoreService {
     );
 
     await upsertAppointment(appointment);
+
+    // Ensure student profile reflects counsellor assignment for visibility
+    try {
+      await _firestore.collection('users').doc(studentId).set({
+        'counsellorId': counsellorId,
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Non-blocking: ignore any profile write failure
+    }
     return docRef.id;
   }
 
@@ -191,14 +245,32 @@ class FirestoreService {
       'updatedAt': DateTime.now().millisecondsSinceEpoch,
     }, SetOptions(merge: true));
 
+    // Fetch appointment to notify parties
+    final apptSnap = await _firestore.collection('appointments').doc(appointmentId).get();
+    final data = apptSnap.data() ?? {};
+    final studentId = data['studentId'] as String?;
+    final counsellorId = data['counsellorId'] as String?;
+    // Read start time if needed for future flows
+
+    // Notify on confirmation
+    if (status == AppointmentStatus.confirmed && studentId != null) {
+      await _firestore
+          .collection('users')
+          .doc(studentId)
+          .collection('notifications')
+          .add({
+        'title': 'Appointment Confirmed',
+        'message': 'Your session has been confirmed.',
+        'appointmentId': appointmentId,
+        'type': 'appointment_confirmed',
+        'read': false,
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+
     // If session completed, send review notifications
     if (status == AppointmentStatus.completed) {
-      final appt =
-          await _firestore.collection('appointments').doc(appointmentId).get();
-      if (appt.exists) {
-        final data = appt.data()!;
-        final studentId = data['studentId'] as String;
-        final counsellorId = data['counsellorId'] as String;
+      if (studentId != null && counsellorId != null) {
 
         // Notify student to review counsellor
         await _firestore
@@ -211,7 +283,7 @@ class FirestoreService {
           'appointmentId': appointmentId,
           'type': 'review_counsellor',
           'read': false,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
+              'createdAt': DateTime.now().millisecondsSinceEpoch,
         });
 
         // Notify counsellor to comment on progress
@@ -225,8 +297,76 @@ class FirestoreService {
           'appointmentId': appointmentId,
           'type': 'add_progress_notes',
           'read': false,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
+              'createdAt': DateTime.now().millisecondsSinceEpoch,
         });
+      }
+    }
+  }
+
+  /// Send a reminder notification to the student 5 minutes before start time.
+  /// Marks `studentReminderSent: true` on the appointment to avoid duplicates.
+  Future<void> sendUpcomingReminderIfDue(String userId) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final fiveMinMs = 5 * 60 * 1000;
+    final snap = await _firestore
+        .collection('appointments')
+        .where('participants', arrayContains: userId)
+        .get();
+
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final start = (data['start'] as num?)?.toInt();
+      final studentId = data['studentId'] as String?;
+      final reminderSent = data['studentReminderSent'] as bool? ?? false;
+      final statusStr = data['status'] as String? ?? 'pending';
+      if (start == null || studentId == null) continue;
+      final isConfirmed = statusStr == AppointmentStatus.confirmed.name || statusStr == AppointmentStatus.pending.name;
+      final timeToStart = start - now;
+      if (!reminderSent && isConfirmed && timeToStart > 0 && timeToStart <= fiveMinMs && studentId == userId) {
+        await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('notifications')
+            .add({
+          'title': 'Upcoming Session',
+          'message': 'Your session starts in 5 minutes.',
+          'appointmentId': doc.id,
+          'type': 'appointment_reminder',
+          'read': false,
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
+        });
+        await doc.reference.update({'studentReminderSent': true});
+      }
+    }
+  }
+
+  /// Auto-complete sessions 30 minutes after end time for the given user.
+  /// This runs client-side and respects security rules (only updates sessions
+  /// where the current user is student or counsellor).
+  Future<void> autoCompleteExpiredSessionsForUser(String userId,
+      {Duration grace = const Duration(minutes: 30)}) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final graceMs = grace.inMilliseconds;
+    final snap = await _firestore
+        .collection('appointments')
+        .where('participants', arrayContains: userId)
+        .get();
+
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final statusStr = data['status'] as String? ?? 'pending';
+      final endMs = (data['end'] as num?)?.toInt() ?? 0;
+      if (endMs <= 0) continue;
+
+      final isActive = statusStr == AppointmentStatus.confirmed.name ||
+          statusStr == AppointmentStatus.pending.name;
+      final pastWithGrace = now >= (endMs + graceMs);
+
+      if (isActive && pastWithGrace) {
+        await updateAppointmentStatus(
+          appointmentId: doc.id,
+          status: AppointmentStatus.completed,
+        );
       }
     }
   }
@@ -253,6 +393,27 @@ class FirestoreService {
         .map((snap) => snap.docs
             .map((doc) => Appointment.fromJson(doc.data(), doc.id))
             .toList());
+  }
+
+  // Reviews moderation
+  Stream<List<Appointment>> pendingReviews() {
+    return _firestore
+        .collection('appointments')
+        .where('isReviewApproved', isEqualTo: false)
+        .orderBy('start', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => Appointment.fromJson(doc.data(), doc.id))
+            .where((a) => a.studentRating != null ||
+                (a.studentComment != null && a.studentComment!.isNotEmpty))
+            .toList());
+  }
+
+  Future<void> approveReview(String appointmentId) {
+    return _firestore
+        .collection('appointments')
+        .doc(appointmentId)
+        .update({'isReviewApproved': true, 'updatedAt': DateTime.now().millisecondsSinceEpoch});
   }
 
   Stream<List<UserProfile>> counsellors() {
@@ -572,6 +733,30 @@ class FirestoreService {
             .toList());
   }
 
+  // Alternative: derive assigned students from appointments for reliability
+  Stream<List<UserProfile>> assignedStudentsFromAppointments(
+      String counsellorId) {
+    return _firestore
+        .collection('appointments')
+        .where('counsellorId', isEqualTo: counsellorId)
+        .snapshots()
+        .asyncMap((snap) async {
+      final ids = snap.docs
+          .map((d) => (d.data()['studentId'] as String?))
+          .where((id) => id != null && id.isNotEmpty)
+          .toSet()
+          .toList();
+      final profiles = <UserProfile>[];
+      for (final id in ids) {
+        final doc = await _firestore.collection('users').doc(id!).get();
+        if (doc.exists) {
+          profiles.add(UserProfile.fromJson({...doc.data()!, 'uid': doc.id}));
+        }
+      }
+      return profiles;
+    });
+  }
+
   // Check if a time slot is available for a counsellor (before booking)
   Future<List<String>> checkAvailability({
     required String counsellorId,
@@ -583,34 +768,34 @@ class FirestoreService {
     final startMs = start.millisecondsSinceEpoch;
     final endMs = end.millisecondsSinceEpoch;
 
-    // Check for leave conflicts (single-range query, filter endDate in memory)
+    // Check for leave conflicts (equality query, filter window in memory)
     final leaveQuery = await _firestore
         .collection('leaves')
         .where('userId', isEqualTo: counsellorId)
-        .where('startDate', isLessThanOrEqualTo: endMs)
         .get();
 
     final onLeave = leaveQuery.docs.any((doc) {
       final data = doc.data();
+      final leaveStart = (data['startDate'] as num?)?.toInt() ?? 0;
       final leaveEnd = (data['endDate'] as num?)?.toInt() ?? 0;
-      return leaveEnd >= startMs;
+      return leaveStart <= endMs && leaveEnd >= startMs;
     });
 
     if (onLeave) {
       conflicts.add('Counsellor is on leave during this time.');
     }
 
-    // Check for appointment conflicts (single-range query, filter end in memory)
+    // Check for appointment conflicts (equality query, filter window in memory)
     final appointmentQuery = await _firestore
         .collection('appointments')
         .where('counsellorId', isEqualTo: counsellorId)
-        .where('start', isLessThan: endMs)
         .get();
 
     final hasConflict = appointmentQuery.docs.any((doc) {
       final data = doc.data();
+      final apptStart = (data['start'] as num?)?.toInt() ?? 0;
       final apptEnd = (data['end'] as num?)?.toInt() ?? 0;
-      return apptEnd > startMs;
+      return apptStart < endMs && apptEnd > startMs;
     });
 
     if (hasConflict) {

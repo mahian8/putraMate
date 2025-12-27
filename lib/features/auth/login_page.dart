@@ -78,6 +78,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       if (errorMsg.startsWith('Exception: ')) {
         errorMsg = errorMsg.substring(11);
       }
+      if (!mounted) return;
       setState(() => _error = errorMsg);
       print('✗ Login error: $errorMsg');
     } finally {

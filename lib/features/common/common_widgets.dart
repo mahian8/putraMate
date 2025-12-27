@@ -12,7 +12,7 @@ class PrimaryScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final footerText = 'All rights reserved by PutraMate (UPM) ${DateTime.now().year}';
     return Scaffold(
-      appBar: AppBar(title: Text(title), actions: actions),
+        appBar: AppBar(title: Text(title), actions: actions),
       floatingActionButton: fab,
       body: SafeArea(
         child: Padding(
@@ -95,7 +95,6 @@ class RoleBadge extends StatelessWidget {
       case UserRole.counsellor:
         return scheme.tertiary;
       case UserRole.student:
-      default:
         return scheme.primary;
     }
   }
@@ -104,7 +103,7 @@ class RoleBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Chip(
-      backgroundColor: _color(role, scheme).withOpacity(0.12),
+      backgroundColor: _color(role, scheme).withValues(alpha: 0.12),
       labelStyle: TextStyle(color: _color(role, scheme), fontWeight: FontWeight.w700),
       label: Text(role.name.toUpperCase()),
     );

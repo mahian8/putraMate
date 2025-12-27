@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../firebase_options.dart';
 import '../models/user_profile.dart';
 
 class AuthService {
@@ -157,7 +160,7 @@ class AuthService {
         );
   }
 
-  // Admin: Create counsellor with temporary password
+  // Admin: Create counsellor with temporary password (without changing admin session)
   Future<String> createCounsellorWithPassword({
     required String email,
     required String password,
@@ -166,21 +169,32 @@ class AuthService {
     required String designation,
     required String expertise,
   }) async {
-    // Save current admin credentials
     final currentUser = _auth.currentUser;
     if (currentUser == null) throw 'Not signed in as admin';
-    final adminEmail = currentUser.email!;
 
-    print('→ Creating counsellor account for: $email');
+    print('→ Creating counsellor account (no session switch) for: $email');
 
-    // Create auth account for counsellor (this will sign us in as the counsellor)
-    final userCred = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
+    // Use Identity Toolkit REST API to create user without affecting SDK session
+    final apiKey = DefaultFirebaseOptions.currentPlatform.apiKey;
+    final uri = Uri.parse('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$apiKey');
+    final resp = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'password': password,
+        'returnSecureToken': true,
+      }),
     );
-    final uid = userCred.user!.uid;
 
-    print('✓ Auth account created: $uid');
+    if (resp.statusCode != 200) {
+      print('✗ Failed to create user via REST: ${resp.statusCode} ${resp.body}');
+      throw 'Failed to create counsellor: ${resp.body}';
+    }
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    final uid = data['localId'] as String;
+    print('✓ Auth account created via REST: $uid');
 
     // Create Firestore profile for counsellor
     await _firestore.collection('users').doc(uid).set({
@@ -198,13 +212,7 @@ class AuthService {
 
     print('✓ Firestore profile created');
 
-    // Sign out the newly created counsellor
-    await _auth.signOut();
-    print('→ Signed out counsellor, admin will need to re-authenticate');
-
-    // Note: Admin will be signed out and redirected to login
-    // The admin dashboard should handle this gracefully
-
+    // Keep admin session intact; do NOT sign out
     return uid;
   }
 

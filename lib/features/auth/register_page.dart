@@ -25,29 +25,33 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _medicalConditions = TextEditingController();
   final _emergencyContact = TextEditingController();
   final _emergencyPhone = TextEditingController();
-  
+
   String? _gender;
   bool _loading = false;
+  bool _obscurePassword = true;
   String? _error;
   String? _passwordStrength;
 
   String _calculatePasswordStrength(String password) {
     if (password.isEmpty) return '';
     if (password.length < 6) return 'Weak: too short';
-    
+
     bool hasUpper = password.contains(RegExp(r'[A-Z]'));
     bool hasLower = password.contains(RegExp(r'[a-z]'));
     bool hasNumber = password.contains(RegExp(r'[0-9]'));
-    bool hasSpecial = password.contains(RegExp(r'[!@#$%^&*()_+\-=\[\]{};:,.<>?]'));
-    
+    bool hasSpecial =
+        password.contains(RegExp(r'[!@#$%^&*()_+\-=\[\]{};:,.<>?]'));
+
     int strength = 0;
     if (hasUpper) strength++;
     if (hasLower) strength++;
     if (hasNumber) strength++;
     if (hasSpecial) strength++;
-    
-    if (strength < 2) return 'Weak: add uppercase, numbers, or special characters';
-    if (strength == 2) return 'Fair: add numbers or special characters for better security';
+
+    if (strength < 2)
+      return 'Weak: add uppercase, numbers, or special characters';
+    if (strength == 2)
+      return 'Fair: add numbers or special characters for better security';
     if (strength == 3) return 'Good: consider adding more variety';
     return 'Strong: excellent password';
   }
@@ -70,7 +74,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() {
       _loading = true;
       _error = null;
@@ -106,13 +110,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         key: _formKey,
         child: ListView(
           children: [
-            Text('Student registration', style: Theme.of(context).textTheme.titleLarge),
+            Text('Student registration',
+                style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             if (_error != null)
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            
+              Text(_error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+
             // Personal Information
-            Text('Personal Information', style: Theme.of(context).textTheme.titleMedium),
+            Text('Personal Information',
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             TextFormField(
               controller: _name,
@@ -129,10 +136,21 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _password,
-              obscureText: true,
-              onChanged: (v) => setState(() => _passwordStrength = _calculatePasswordStrength(v)),
-              decoration: const InputDecoration(labelText: 'Password *'),
-              validator: (v) => (v?.length ?? 0) < 6 ? 'Min 6 characters' : null,
+              obscureText: _obscurePassword,
+              onChanged: (v) => setState(
+                  () => _passwordStrength = _calculatePasswordStrength(v)),
+              decoration: InputDecoration(
+                labelText: 'Password *',
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                ),
+              ),
+              validator: (v) =>
+                  (v?.length ?? 0) < 6 ? 'Min 6 characters' : null,
             ),
             if (_passwordStrength != null && _passwordStrength!.isNotEmpty)
               Padding(
@@ -141,13 +159,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   _passwordStrength!,
                   style: TextStyle(
                     fontSize: 12,
-                    color: _passwordStrength!.startsWith('Weak') 
-                        ? Colors.red 
+                    color: _passwordStrength!.startsWith('Weak')
+                        ? Colors.red
                         : _passwordStrength!.startsWith('Fair')
-                        ? Colors.orange
-                        : _passwordStrength!.startsWith('Good')
-                        ? Colors.amber
-                        : Colors.green,
+                            ? Colors.orange
+                            : _passwordStrength!.startsWith('Good')
+                                ? Colors.amber
+                                : Colors.green,
                   ),
                 ),
               ),
@@ -183,12 +201,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               onChanged: (v) => setState(() => _gender = v),
               validator: (v) => v == null ? 'Required' : null,
             ),
-            
+
             const SizedBox(height: 24),
             const Divider(),
-            
+
             // Medical Information
-            Text('Medical Information', style: Theme.of(context).textTheme.titleMedium),
+            Text('Medical Information',
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             TextFormField(
               controller: _bloodType,
@@ -215,30 +234,35 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               ),
               maxLines: 2,
             ),
-            
+
             const SizedBox(height: 24),
             const Divider(),
-            
+
             // Emergency Contact
-            Text('Emergency Contact', style: Theme.of(context).textTheme.titleMedium),
+            Text('Emergency Contact',
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             TextFormField(
               controller: _emergencyContact,
-              decoration: const InputDecoration(labelText: 'Emergency contact name *'),
+              decoration:
+                  const InputDecoration(labelText: 'Emergency contact name *'),
               validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _emergencyPhone,
-              decoration: const InputDecoration(labelText: 'Emergency contact phone *'),
+              decoration:
+                  const InputDecoration(labelText: 'Emergency contact phone *'),
               keyboardType: TextInputType.phone,
               validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
             ),
-            
+
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _loading ? null : _submit,
-              child: _loading ? const CircularProgressIndicator() : const Text('Sign up'),
+              child: _loading
+                  ? const CircularProgressIndicator()
+                  : const Text('Sign up'),
             ),
             TextButton(
               onPressed: () => context.pop(),

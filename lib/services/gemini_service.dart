@@ -1,6 +1,5 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'dart:convert';
-import 'dart:convert';
 
 class GeminiService {
   GeminiService({String? apiKey})

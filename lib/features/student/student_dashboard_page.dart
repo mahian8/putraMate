@@ -47,6 +47,12 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
         }
 
         final firestoreService = ref.watch(firestoreProvider);
+        // Fire a one-time reminder check after first frame
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          firestoreService.sendUpcomingReminderIfDue(user.uid);
+          // Also auto-complete any sessions past end time by 30 minutes
+          firestoreService.autoCompleteExpiredSessionsForUser(user.uid);
+        });
 
         return PrimaryScaffold(
           title: 'Welcome, ${profile.displayName}',

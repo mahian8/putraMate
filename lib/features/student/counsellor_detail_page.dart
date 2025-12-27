@@ -1,35 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../models/user_profile.dart';
 import '../../models/appointment.dart';
 import '../../services/firestore_service.dart';
+import '../../providers/auth_providers.dart';
 import '../common/common_widgets.dart';
 
-class CounsellorDetailPage extends StatefulWidget {
+class CounsellorDetailPage extends ConsumerStatefulWidget {
   const CounsellorDetailPage({super.key, required this.counsellor});
 
   final UserProfile counsellor;
 
   @override
-  State<CounsellorDetailPage> createState() => _CounsellorDetailPageState();
+  ConsumerState<CounsellorDetailPage> createState() =>
+      _CounsellorDetailPageState();
 }
 
-class _CounsellorDetailPageState extends State<CounsellorDetailPage> {
+class _CounsellorDetailPageState extends ConsumerState<CounsellorDetailPage> {
   late Future<List<Appointment>> _reviewsFuture;
 
   @override
   void initState() {
     super.initState();
     final fs = FirestoreService();
-    // Fetch completed appointments with reviews for this counsellor
-    _reviewsFuture = fs
-        .appointmentsForCounsellor(widget.counsellor.uid)
-        .first
-        .then((appointments) => appointments
-            .where((a) =>
-                a.status == AppointmentStatus.completed &&
-                a.studentRating != null &&
-                a.isReviewApproved == true) // Only approved reviews
-            .toList());
+    // Fetch all reviews for this counsellor (visible to all students via Firestore rule)
+    _reviewsFuture = fs.counsellorReviews(widget.counsellor.uid).first;
   }
 
   @override
@@ -52,6 +48,48 @@ class _CounsellorDetailPageState extends State<CounsellorDetailPage> {
                       Text(
                         widget.counsellor.displayName,
                         style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      // Average Rating Display
+                      FutureBuilder<List<Appointment>>(
+                        future: _reviewsFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData) {
+                            final reviews = snapshot.data ?? [];
+                            final ratingsOnly = reviews
+                                .where((r) => r.studentRating != null)
+                                .map((r) => r.studentRating!)
+                                .toList();
+
+                            if (ratingsOnly.isNotEmpty) {
+                              final avgRating =
+                                  ratingsOnly.reduce((a, b) => a + b) /
+                                      ratingsOnly.length;
+                              return Row(
+                                children: [
+                                  Icon(Icons.star,
+                                      color: Colors.amber, size: 20),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${avgRating.toStringAsFixed(1)} / 5.0',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.amber.shade700,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '(${ratingsOnly.length} ${ratingsOnly.length == 1 ? 'review' : 'reviews'})',
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ],
+                              );
+                            }
+                          }
+                          return const SizedBox.shrink();
+                        },
                       ),
                       const SizedBox(height: 8),
                       if (widget.counsellor.expertise != null) ...[
@@ -105,7 +143,7 @@ class _CounsellorDetailPageState extends State<CounsellorDetailPage> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Center(
-                        child: Text('No approved reviews yet'),
+                        child: Text('No reviews yet'),
                       ),
                     );
                   }
@@ -116,6 +154,8 @@ class _CounsellorDetailPageState extends State<CounsellorDetailPage> {
                     itemCount: reviews.length,
                     itemBuilder: (context, index) {
                       final review = reviews[index];
+                      final fs = ref.watch(firestoreServiceProvider);
+
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         child: Padding(
@@ -123,6 +163,57 @@ class _CounsellorDetailPageState extends State<CounsellorDetailPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              // Student name and date
+                              StreamBuilder<UserProfile?>(
+                                stream: fs.userProfile(review.studentId),
+                                builder: (context, studentSnapshot) {
+                                  final studentName =
+                                      studentSnapshot.data?.displayName ??
+                                          'Anonymous';
+                                  final nameInitial = studentName.isNotEmpty
+                                      ? studentName[0].toUpperCase()
+                                      : '?';
+                                  return Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 16,
+                                            child: Text(
+                                              nameInitial,
+                                              style:
+                                                  const TextStyle(fontSize: 14),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            studentName,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Text(
+                                        DateFormat('MMM d, y').format(
+                                            review.updatedAt ??
+                                                review.createdAt ??
+                                                DateTime.now()),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Colors.grey.shade600,
+                                            ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 12),
                               // Rating
                               Row(
                                 children: [
@@ -140,20 +231,31 @@ class _CounsellorDetailPageState extends State<CounsellorDetailPage> {
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    '${review.studentRating?.toStringAsFixed(1) ?? "N/A"}/5',
+                                    '${review.studentRating?.toStringAsFixed(1) ?? "N/A"} / 5',
                                     style: const TextStyle(
                                         fontWeight: FontWeight.bold),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
                               // Comment
                               if (review.studentComment != null &&
-                                  review.studentComment!.isNotEmpty)
-                                Text(
-                                  review.studentComment!,
-                                  style: Theme.of(context).textTheme.bodyMedium,
+                                  review.studentComment!.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border:
+                                        Border.all(color: Colors.grey.shade200),
+                                  ),
+                                  child: Text(
+                                    review.studentComment!,
+                                    style:
+                                        Theme.of(context).textTheme.bodyMedium,
+                                  ),
                                 ),
+                              ],
                             ],
                           ),
                         ),
