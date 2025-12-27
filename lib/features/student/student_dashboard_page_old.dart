@@ -37,7 +37,7 @@ class StudentDashboardPage extends ConsumerWidget {
         }
 
         final firestoreService = ref.watch(firestoreProvider);
-        
+
         return PrimaryScaffold(
           title: 'Welcome, ${profile.displayName}',
           body: ListView(
@@ -53,7 +53,8 @@ class StudentDashboardPage extends ConsumerWidget {
                       icon: Icons.event,
                       label: 'Book Counsellor',
                       color: Colors.blue,
-                      onTap: () => context.pushNamed(AppRoute.counsellorCatalog.name),
+                      onTap: () =>
+                          context.pushNamed(AppRoute.counsellorCatalog.name),
                     ),
                     _QuickActionChip(
                       icon: Icons.chat_bubble,
@@ -77,30 +78,34 @@ class StudentDashboardPage extends ConsumerWidget {
                       icon: Icons.book,
                       label: 'Journal',
                       color: Colors.teal,
-                      onTap: () => context.pushNamed(AppRoute.studentJournal.name),
+                      onTap: () =>
+                          context.pushNamed(AppRoute.studentJournal.name),
                     ),
                   ],
                 ),
               ),
-              
+
               // Mood Check Reminder
               SectionCard(
                 title: 'How are you feeling today?',
-                trailing: Icon(Icons.notifications_active, color: Theme.of(context).colorScheme.primary),
+                trailing: Icon(Icons.notifications_active,
+                    color: Theme.of(context).colorScheme.primary),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Track your daily mood to help us support you better.'),
+                    const Text(
+                        'Track your daily mood to help us support you better.'),
                     const SizedBox(height: 12),
                     ElevatedButton.icon(
-                      onPressed: () => context.pushNamed(AppRoute.studentMood.name),
+                      onPressed: () =>
+                          context.pushNamed(AppRoute.studentMood.name),
                       icon: const Icon(Icons.add_reaction),
                       label: const Text('Log Mood Now'),
                     ),
                   ],
                 ),
               ),
-              
+
               // Upcoming Appointments - DYNAMIC
               StreamBuilder<List<Appointment>>(
                 stream: firestoreService.appointmentsForUser(user.uid),
@@ -110,11 +115,12 @@ class StudentDashboardPage extends ConsumerWidget {
                       .where((a) => a.start.isAfter(DateTime.now()))
                       .take(3)
                       .toList();
-                  
+
                   return SectionCard(
                     title: 'Upcoming Sessions',
                     trailing: TextButton(
-                      onPressed: () => context.pushNamed(AppRoute.appointments.name),
+                      onPressed: () =>
+                          context.pushNamed(AppRoute.appointments.name),
                       child: const Text('View All'),
                     ),
                     child: upcoming.isEmpty
@@ -124,7 +130,8 @@ class StudentDashboardPage extends ConsumerWidget {
                               const Text('No upcoming sessions scheduled.'),
                               const SizedBox(height: 8),
                               TextButton.icon(
-                                onPressed: () => context.pushNamed(AppRoute.booking.name),
+                                onPressed: () =>
+                                    context.pushNamed(AppRoute.booking.name),
                                 icon: const Icon(Icons.add),
                                 label: const Text('Book a Session'),
                               ),
@@ -135,11 +142,13 @@ class StudentDashboardPage extends ConsumerWidget {
                               ...upcoming.map((apt) => _AppointmentTile(
                                     date: apt.start,
                                     counsellor: 'Counsellor',
-                                    time: DateFormat('h:mm a').format(apt.start),
+                                    time:
+                                        DateFormat('h:mm a').format(apt.start),
                                   )),
                               const Divider(),
                               TextButton.icon(
-                                onPressed: () => context.pushNamed(AppRoute.booking.name),
+                                onPressed: () =>
+                                    context.pushNamed(AppRoute.booking.name),
                                 icon: const Icon(Icons.add),
                                 label: const Text('Book Another Session'),
                               ),
@@ -148,14 +157,14 @@ class StudentDashboardPage extends ConsumerWidget {
                   );
                 },
               ),
-              
+
               // Recent Mood Trend - DYNAMIC
               StreamBuilder<List<MoodEntry>>(
                 stream: firestoreService.moodEntries(user.uid),
                 builder: (context, snapshot) {
                   final moods = snapshot.data ?? [];
                   final recentMoods = moods.take(7).toList();
-                  
+
                   if (recentMoods.isEmpty) {
                     return SectionCard(
                       title: 'Your Mood This Week',
@@ -164,23 +173,27 @@ class StudentDashboardPage extends ConsumerWidget {
                           const Text('Start tracking your mood to see trends.'),
                           const SizedBox(height: 8),
                           ElevatedButton(
-                            onPressed: () => context.pushNamed(AppRoute.studentMood.name),
+                            onPressed: () =>
+                                context.pushNamed(AppRoute.studentMood.name),
                             child: const Text('Log Your First Mood'),
                           ),
                         ],
                       ),
                     );
                   }
-                  
+
                   final avgMood = recentMoods.isEmpty
                       ? 0.0
-                      : recentMoods.map((e) => e.moodScore).reduce((a, b) => a + b) /
+                      : recentMoods
+                              .map((e) => e.moodScore)
+                              .reduce((a, b) => a + b) /
                           recentMoods.length;
-                  
+
                   return SectionCard(
                     title: 'Your Mood This Week',
                     trailing: TextButton(
-                      onPressed: () => context.pushNamed(AppRoute.studentMood.name),
+                      onPressed: () =>
+                          context.pushNamed(AppRoute.studentMood.name),
                       child: const Text('Details'),
                     ),
                     child: Column(
@@ -200,9 +213,11 @@ class StudentDashboardPage extends ConsumerWidget {
                                   const SizedBox(height: 4),
                                   Text(
                                     DateFormat('E').format(
-                                      DateTime.now().subtract(Duration(days: 6 - i)),
+                                      DateTime.now()
+                                          .subtract(Duration(days: 6 - i)),
                                     ),
-                                    style: Theme.of(context).textTheme.labelSmall,
+                                    style:
+                                        Theme.of(context).textTheme.labelSmall,
                                   ),
                                 ],
                               );
@@ -241,14 +256,14 @@ class StudentDashboardPage extends ConsumerWidget {
                   );
                 },
               ),
-              
+
               // Community Highlights - DYNAMIC
               StreamBuilder(
                 stream: ref.watch(firestoreProvider).communityPosts(),
                 builder: (context, snapshot) {
                   final posts = snapshot.data ?? [];
                   final recentPosts = posts.take(2).toList();
-                  
+
                   return SectionCard(
                     title: 'Community Forum',
                     trailing: TextButton(
