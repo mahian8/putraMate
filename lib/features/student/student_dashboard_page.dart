@@ -16,7 +16,8 @@ class StudentDashboardPage extends ConsumerStatefulWidget {
   const StudentDashboardPage({super.key});
 
   @override
-  ConsumerState<StudentDashboardPage> createState() => _StudentDashboardPageState();
+  ConsumerState<StudentDashboardPage> createState() =>
+      _StudentDashboardPageState();
 }
 
 class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
@@ -161,14 +162,17 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
               // Mood Check Reminder
               SectionCard(
                 title: 'How are you feeling today?',
-                trailing: Icon(Icons.notifications_active, color: Theme.of(context).colorScheme.primary),
+                trailing: Icon(Icons.notifications_active,
+                    color: Theme.of(context).colorScheme.primary),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Track your daily mood to help us support you better.'),
+                    const Text(
+                        'Track your daily mood to help us support you better.'),
                     const SizedBox(height: 12),
                     ElevatedButton.icon(
-                      onPressed: () => context.pushNamed(AppRoute.studentMood.name),
+                      onPressed: () =>
+                          context.pushNamed(AppRoute.studentMood.name),
                       icon: const Icon(Icons.add_reaction),
                       label: const Text('Log Mood Now'),
                     ),
@@ -189,7 +193,8 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                   return SectionCard(
                     title: 'Upcoming Sessions',
                     trailing: TextButton(
-                      onPressed: () => context.pushNamed(AppRoute.appointments.name),
+                      onPressed: () =>
+                          context.pushNamed(AppRoute.appointments.name),
                       child: const Text('View All'),
                     ),
                     child: upcoming.isEmpty
@@ -199,7 +204,8 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                               const Text('No upcoming sessions scheduled.'),
                               const SizedBox(height: 8),
                               TextButton.icon(
-                                onPressed: () => context.pushNamed(AppRoute.booking.name),
+                                onPressed: () =>
+                                    context.pushNamed(AppRoute.booking.name),
                                 icon: const Icon(Icons.add),
                                 label: const Text('Book a Session'),
                               ),
@@ -210,11 +216,13 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                               ...upcoming.map((apt) => _AppointmentTile(
                                     date: apt.start,
                                     counsellor: 'Counsellor',
-                                    time: DateFormat('h:mm a').format(apt.start),
+                                    time:
+                                        DateFormat('h:mm a').format(apt.start),
                                   )),
                               const Divider(),
                               TextButton.icon(
-                                onPressed: () => context.pushNamed(AppRoute.booking.name),
+                                onPressed: () =>
+                                    context.pushNamed(AppRoute.booking.name),
                                 icon: const Icon(Icons.add),
                                 label: const Text('Book Another Session'),
                               ),
@@ -231,15 +239,18 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                   final moods = snapshot.data ?? [];
                   final recentMoods = moods.take(7).toList();
                   final now = DateTime.now();
-                  final lastMoodAt = moods.isNotEmpty ? moods.first.timestamp : null;
-                  final showReminder = lastMoodAt == null || now.difference(lastMoodAt).inHours >= 24;
+                  final lastMoodAt =
+                      moods.isNotEmpty ? moods.first.timestamp : null;
+                  final showReminder = lastMoodAt == null ||
+                      now.difference(lastMoodAt).inHours >= 24;
                   final reminderMessages = [
                     'Hey there, how are you feeling today?',
                     'Just checking in. Want to log a quick mood?',
                     'You matter to us. Everything okay?',
                     'We are here for you. Share how you feel?',
                   ];
-                  final reminderMsg = reminderMessages[_random.nextInt(reminderMessages.length)];
+                  final reminderMsg = reminderMessages[
+                      _random.nextInt(reminderMessages.length)];
 
                   if (recentMoods.isEmpty) {
                     return SectionCard(
@@ -249,7 +260,8 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                           const Text('Start tracking your mood to see trends.'),
                           const SizedBox(height: 8),
                           ElevatedButton(
-                            onPressed: () => context.pushNamed(AppRoute.studentMood.name),
+                            onPressed: () =>
+                                context.pushNamed(AppRoute.studentMood.name),
                             child: const Text('Log Your First Mood'),
                           ),
                         ],
@@ -259,12 +271,15 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
 
                   final avgMood = recentMoods.isEmpty
                       ? 0.0
-                      : recentMoods.map((e) => e.moodScore).reduce((a, b) => a + b) /
+                      : recentMoods
+                              .map((e) => e.moodScore)
+                              .reduce((a, b) => a + b) /
                           recentMoods.length;
                   final moodSection = SectionCard(
                     title: 'Your Mood This Week',
                     trailing: TextButton(
-                      onPressed: () => context.pushNamed(AppRoute.studentMood.name),
+                      onPressed: () =>
+                          context.pushNamed(AppRoute.studentMood.name),
                       child: const Text('Details'),
                     ),
                     child: Column(
@@ -284,9 +299,11 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                                   const SizedBox(height: 4),
                                   Text(
                                     DateFormat('E').format(
-                                      DateTime.now().subtract(Duration(days: 6 - i)),
+                                      DateTime.now()
+                                          .subtract(Duration(days: 6 - i)),
                                     ),
-                                    style: Theme.of(context).textTheme.labelSmall,
+                                    style:
+                                        Theme.of(context).textTheme.labelSmall,
                                   ),
                                 ],
                               );
@@ -329,14 +346,16 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                       children: [
                         SectionCard(
                           title: 'Quick check-in',
-                          trailing: const Icon(Icons.notifications_active, color: Colors.amber),
+                          trailing: const Icon(Icons.notifications_active,
+                              color: Colors.amber),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(reminderMsg),
                               const SizedBox(height: 8),
                               ElevatedButton.icon(
-                                onPressed: () => context.pushNamed(AppRoute.studentMood.name),
+                                onPressed: () => context
+                                    .pushNamed(AppRoute.studentMood.name),
                                 icon: const Icon(Icons.edit_note),
                                 label: const Text('Log mood now'),
                               ),
@@ -359,7 +378,7 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                 builder: (context, snapshot) {
                   final allPosts = snapshot.data ?? [];
                   final totalPages = (allPosts.length / _postsPerPage).ceil();
-                  
+
                   if (totalPages == 0) {
                     return SectionCard(
                       title: 'Community Forum',
@@ -373,13 +392,15 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
 
                   // Get posts for current page
                   final startIndex = _currentPage * _postsPerPage;
-                  final endIndex = (startIndex + _postsPerPage > allPosts.length)
-                      ? allPosts.length
-                      : startIndex + _postsPerPage;
+                  final endIndex =
+                      (startIndex + _postsPerPage > allPosts.length)
+                          ? allPosts.length
+                          : startIndex + _postsPerPage;
                   final paginatedPosts = allPosts.sublist(startIndex, endIndex);
 
                   return SectionCard(
-                    title: 'Community Forum (Page ${_currentPage + 1} of ${totalPages > 0 ? totalPages : 1})',
+                    title:
+                        'Community Forum (Page ${_currentPage + 1} of ${totalPages > 0 ? totalPages : 1})',
                     trailing: TextButton(
                       onPressed: () => context.pushNamed(AppRoute.forum.name),
                       child: const Text('All Posts'),
@@ -394,32 +415,45 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                                 child: Padding(
                                   padding: const EdgeInsets.all(12),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         post.title,
-                                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.bold),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         post.content,
-                                        style: Theme.of(context).textTheme.bodySmall,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 8),
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
                                         children: [
                                           Text(
                                             'by ${post.authorName}',
-                                            style: Theme.of(context).textTheme.labelSmall,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelSmall,
                                           ),
                                           Text(
-                                            DateFormat('MMM d').format(post.createdAt),
-                                            style: Theme.of(context).textTheme.labelSmall,
+                                            DateFormat('MMM d')
+                                                .format(post.createdAt),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelSmall,
                                           ),
                                         ],
                                       ),
@@ -428,11 +462,18 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                                         children: [
                                           Icon(Icons.favorite_border, size: 16),
                                           const SizedBox(width: 4),
-                                          Text('${post.likes.length}', style: Theme.of(context).textTheme.labelSmall),
+                                          Text('${post.likes.length}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .labelSmall),
                                           const SizedBox(width: 16),
-                                          Icon(Icons.comment_outlined, size: 16),
+                                          Icon(Icons.comment_outlined,
+                                              size: 16),
                                           const SizedBox(width: 4),
-                                          Text('${post.commentCount}', style: Theme.of(context).textTheme.labelSmall),
+                                          Text('${post.commentCount}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .labelSmall),
                                         ],
                                       ),
                                     ],
@@ -440,7 +481,7 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                                 ),
                               ),
                             )),
-                        
+
                         // Pagination controls
                         const SizedBox(height: 16),
                         Row(
@@ -512,4 +553,3 @@ class _AppointmentTile extends StatelessWidget {
     );
   }
 }
-

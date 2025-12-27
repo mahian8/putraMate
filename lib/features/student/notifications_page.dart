@@ -25,7 +25,8 @@ class NotificationsPage extends ConsumerWidget {
           onPressed: () async {
             await firestore.markAllNotificationsRead(user.uid);
           },
-          child: const Text('Mark all read', style: TextStyle(color: Colors.white)),
+          child: const Text('Mark all read',
+              style: TextStyle(color: Colors.white)),
         ),
       ],
       body: StreamBuilder<List<Map<String, dynamic>>>(
@@ -48,12 +49,15 @@ class NotificationsPage extends ConsumerWidget {
               final message = item['message'] as String? ?? 'Notification';
               final read = item['read'] as bool? ?? false;
               final createdAtMs = item['createdAt'] as int? ?? 0;
-              final createdAt = DateTime.fromMillisecondsSinceEpoch(createdAtMs);
+              final createdAt =
+                  DateTime.fromMillisecondsSinceEpoch(createdAtMs);
 
               return ListTile(
                 leading: Icon(
                   read ? Icons.notifications_none : Icons.notifications_active,
-                  color: read ? Colors.grey : Theme.of(context).colorScheme.primary,
+                  color: read
+                      ? Colors.grey
+                      : Theme.of(context).colorScheme.primary,
                 ),
                 title: Text(message),
                 subtitle: Text(_formatDate(createdAt)),

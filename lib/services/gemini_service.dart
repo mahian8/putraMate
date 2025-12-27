@@ -45,7 +45,7 @@ Text to analyze: "$textInput"
       final content = [Content.text(prompt)];
       final response = await model.generateContent(content);
       final responseText = response.text ?? '{}';
-      
+
       // Parse JSON from response
       final jsonStart = responseText.indexOf('{');
       final jsonEnd = responseText.lastIndexOf('}') + 1;
@@ -57,7 +57,8 @@ Text to analyze: "$textInput"
             'sentiment': parsed['sentiment'] ?? 'neutral',
             'riskLevel': parsed['riskLevel'] ?? 'low',
             'score': parsed['score'] ?? 5,
-            'keywords': (parsed['keywords'] as List<dynamic>?)?.cast<String>() ?? [],
+            'keywords':
+                (parsed['keywords'] as List<dynamic>?)?.cast<String>() ?? [],
             'recommendation': parsed['recommendation'] ?? 'Continue monitoring',
           };
         } catch (e) {
@@ -71,7 +72,7 @@ Text to analyze: "$textInput"
           };
         }
       }
-      
+
       return {
         'sentiment': 'neutral',
         'riskLevel': 'low',

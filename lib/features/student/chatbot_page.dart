@@ -35,18 +35,21 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
     try {
       final firestore = ref.read(firestoreProvider);
       final history = await firestore.chatHistory(user.uid).first;
-      
+
       setState(() {
         _messages = history.isEmpty
-            ? [{
-                'sender': 'bot',
-                'text': 'Hi! I\'m PutraBot, your mental wellness AI assistant powered by Gemini. How are you feeling today?',
-                'timestamp': DateTime.now(),
-              }]
+            ? [
+                {
+                  'sender': 'bot',
+                  'text':
+                      'Hi! I\'m PutraBot, your mental wellness AI assistant powered by Gemini. How are you feeling today?',
+                  'timestamp': DateTime.now(),
+                }
+              ]
             : history;
         _isLoading = false;
       });
-      
+
       _scrollToBottom();
     } catch (e) {
       setState(() => _isLoading = false);
@@ -84,10 +87,10 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
     try {
       // Save user message to Firestore
       await ref.read(firestoreProvider).saveChatMessage(
-        userId: user.uid,
-        sender: 'you',
-        text: text,
-      );
+            userId: user.uid,
+            sender: 'you',
+            text: text,
+          );
 
       // Get response from Gemini
       final gemini = ref.read(geminiServiceProvider);
@@ -106,11 +109,11 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
 
       // Save bot response to Firestore
       await ref.read(firestoreProvider).saveChatMessage(
-        userId: user.uid,
-        sender: 'bot',
-        text: response,
-        sentiment: sentiment,
-      );
+            userId: user.uid,
+            sender: 'bot',
+            text: response,
+            sentiment: sentiment,
+          );
 
       setState(() {
         _messages.add(botMessage);
@@ -122,12 +125,12 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
         final profile = ref.read(userProfileProvider).value;
         if (profile != null) {
           await ref.read(firestoreProvider).flagHighRiskStudent(
-            studentId: user.uid,
-            studentName: profile.displayName,
-            riskLevel: riskLevel,
-            sentiment: sentiment['sentiment'] as String? ?? 'concerning',
-            message: text,
-          );
+                studentId: user.uid,
+                studentName: profile.displayName,
+                riskLevel: riskLevel,
+                sentiment: sentiment['sentiment'] as String? ?? 'concerning',
+                message: text,
+              );
         }
         _showRiskAlert(context, riskLevel);
       }
@@ -136,7 +139,8 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
     } catch (e) {
       final errorMessage = {
         'sender': 'bot',
-        'text': 'I\'m having trouble connecting. Please try again or contact a counsellor directly.',
+        'text':
+            'I\'m having trouble connecting. Please try again or contact a counsellor directly.',
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
 
@@ -147,10 +151,10 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
 
       // Save error message to Firestore
       await ref.read(firestoreProvider).saveChatMessage(
-        userId: user.uid,
-        sender: 'bot',
-        text: errorMessage['text'] as String,
-      );
+            userId: user.uid,
+            sender: 'bot',
+            text: errorMessage['text'] as String,
+          );
     }
   }
 
@@ -197,7 +201,8 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
             color: Theme.of(context).colorScheme.primaryContainer,
             child: Row(
               children: [
-                Icon(Icons.psychology, color: Theme.of(context).colorScheme.primary),
+                Icon(Icons.psychology,
+                    color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -218,56 +223,64 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
                 controller: _scrollController,
                 padding: const EdgeInsets.all(8),
                 itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final msg = _messages[index];
-                final isBot = msg['sender'] == 'bot';
-                final sentiment = msg['sentiment'] as Map<String, dynamic>?;
-                
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Column(
-                    crossAxisAlignment: isBot ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-                    children: [
-                      Align(
-                        alignment: isBot ? Alignment.centerLeft : Alignment.centerRight,
-                        child: Container(
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.75,
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: isBot
-                                ? Theme.of(context).colorScheme.primaryContainer
-                                : Theme.of(context).colorScheme.primary,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            msg['text'] ?? '',
-                            style: TextStyle(
-                              color: isBot ? null : Colors.white,
+                itemBuilder: (context, index) {
+                  final msg = _messages[index];
+                  final isBot = msg['sender'] == 'bot';
+                  final sentiment = msg['sentiment'] as Map<String, dynamic>?;
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      crossAxisAlignment: isBot
+                          ? CrossAxisAlignment.start
+                          : CrossAxisAlignment.end,
+                      children: [
+                        Align(
+                          alignment: isBot
+                              ? Alignment.centerLeft
+                              : Alignment.centerRight,
+                          child: Container(
+                            constraints: BoxConstraints(
+                              maxWidth:
+                                  MediaQuery.of(context).size.width * 0.75,
+                            ),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isBot
+                                  ? Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer
+                                  : Theme.of(context).colorScheme.primary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              msg['text'] ?? '',
+                              style: TextStyle(
+                                color: isBot ? null : Colors.white,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      if (sentiment != null && sentiment['riskLevel'] != 'low')
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            '⚠️ ${sentiment['riskLevel']} risk detected',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: sentiment['riskLevel'] == 'critical'
-                                  ? Colors.red
-                                  : Colors.orange,
+                        if (sentiment != null &&
+                            sentiment['riskLevel'] != 'low')
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              '⚠️ ${sentiment['riskLevel']} risk detected',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: sentiment['riskLevel'] == 'critical'
+                                    ? Colors.red
+                                    : Colors.orange,
+                              ),
                             ),
                           ),
-                        ),
-                    ],
-                  ),
-                );
-              },
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
           if (_isTyping)
             Padding(
               padding: const EdgeInsets.all(8),
@@ -279,7 +292,8 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                   const SizedBox(width: 8),
-                  Text('AI is thinking...', style: Theme.of(context).textTheme.bodySmall),
+                  Text('AI is thinking...',
+                      style: Theme.of(context).textTheme.bodySmall),
                 ],
               ),
             ),

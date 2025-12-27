@@ -50,17 +50,21 @@ class MyAppointmentsPage extends ConsumerWidget {
                       Text(DateFormat('MMM d, h:mm a').format(a.start)),
                       Text('Status: ${a.status.name}'),
                       if (a.notes != null) Text('Notes: ${a.notes}'),
-                      if (a.isDuplicate) const Text('Potential duplicate booking', style: TextStyle(color: Colors.red)),
+                      if (a.isDuplicate)
+                        const Text('Potential duplicate booking',
+                            style: TextStyle(color: Colors.red)),
                       if (a.studentRating != null)
                         Row(
                           children: [
-                            const Icon(Icons.star, color: Colors.amber, size: 16),
+                            const Icon(Icons.star,
+                                color: Colors.amber, size: 16),
                             Text('${a.studentRating}/5'),
                           ],
                         ),
                     ],
                   ),
-                  trailing: a.status == AppointmentStatus.completed && a.studentRating == null
+                  trailing: a.status == AppointmentStatus.completed &&
+                          a.studentRating == null
                       ? IconButton(
                           icon: const Icon(Icons.rate_review),
                           onPressed: () => _showRatingSheet(context, ref, a.id),
@@ -75,7 +79,8 @@ class MyAppointmentsPage extends ConsumerWidget {
     );
   }
 
-  void _showRatingSheet(BuildContext context, WidgetRef ref, String appointmentId) {
+  void _showRatingSheet(
+      BuildContext context, WidgetRef ref, String appointmentId) {
     showModalBottomSheet(
       context: context,
       builder: (context) {
@@ -99,7 +104,8 @@ class MyAppointmentsPage extends ConsumerWidget {
                   ),
                   TextField(
                     controller: comment,
-                    decoration: const InputDecoration(labelText: 'Comment (optional)'),
+                    decoration:
+                        const InputDecoration(labelText: 'Comment (optional)'),
                   ),
                   const SizedBox(height: 8),
                   ElevatedButton(
@@ -107,7 +113,9 @@ class MyAppointmentsPage extends ConsumerWidget {
                       await ref.read(_fsProvider).submitRating(
                             appointmentId: appointmentId,
                             rating: rating.toInt(),
-                            comment: comment.text.trim().isEmpty ? null : comment.text.trim(),
+                            comment: comment.text.trim().isEmpty
+                                ? null
+                                : comment.text.trim(),
                           );
                       if (context.mounted) Navigator.pop(context);
                     },

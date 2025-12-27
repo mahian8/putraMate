@@ -60,13 +60,13 @@ class FirestoreService {
         .where('participants', arrayContains: userId)
         .snapshots()
         .map((snap) {
-          final list = snap.docs
-              .map((doc) => Appointment.fromJson(doc.data(), doc.id))
-              .toList();
-          // Sort by start time descending to mimic previous orderBy without requiring an index
-          list.sort((a, b) => b.start.compareTo(a.start));
-          return list;
-        });
+      final list = snap.docs
+          .map((doc) => Appointment.fromJson(doc.data(), doc.id))
+          .toList();
+      // Sort by start time descending to mimic previous orderBy without requiring an index
+      list.sort((a, b) => b.start.compareTo(a.start));
+      return list;
+    });
   }
 
   Stream<List<Appointment>> appointmentsForCounsellor(String counsellorId) {
@@ -88,22 +88,24 @@ class FirestoreService {
         .orderBy('start', descending: true)
         .snapshots()
         .map((snap) {
-          final appts = snap.docs
-              .map((doc) => Appointment.fromJson(doc.data(), doc.id))
-              .where((a) => (a.studentRating != null && a.studentRating! > 0) ||
-                            (a.studentComment != null))
-              .toList();
+      final appts = snap.docs
+          .map((doc) => Appointment.fromJson(doc.data(), doc.id))
+          .where((a) =>
+              (a.studentRating != null && a.studentRating! > 0) ||
+              (a.studentComment != null))
+          .toList();
 
-          // Debug: log what we received to help trace visibility
-          try {
-            print('✓ counsellorReviews for $counsellorId: ${appts.length} items');
-            for (final a in appts) {
-              print('  - appt ${a.id} student=${a.studentId} rating=${a.studentRating} commentExists=${a.studentComment != null}');
-            }
-          } catch (_) {}
+      // Debug: log what we received to help trace visibility
+      try {
+        print('✓ counsellorReviews for $counsellorId: ${appts.length} items');
+        for (final a in appts) {
+          print(
+              '  - appt ${a.id} student=${a.studentId} rating=${a.studentRating} commentExists=${a.studentComment != null}');
+        }
+      } catch (_) {}
 
-          return appts;
-        });
+      return appts;
+    });
   }
 
   Stream<List<Appointment>> appointmentsForStudent(String studentId) {
@@ -246,7 +248,8 @@ class FirestoreService {
     }, SetOptions(merge: true));
 
     // Fetch appointment to notify parties
-    final apptSnap = await _firestore.collection('appointments').doc(appointmentId).get();
+    final apptSnap =
+        await _firestore.collection('appointments').doc(appointmentId).get();
     final data = apptSnap.data() ?? {};
     final studentId = data['studentId'] as String?;
     final counsellorId = data['counsellorId'] as String?;
@@ -271,7 +274,6 @@ class FirestoreService {
     // If session completed, send review notifications
     if (status == AppointmentStatus.completed) {
       if (studentId != null && counsellorId != null) {
-
         // Notify student to review counsellor
         await _firestore
             .collection('users')
@@ -283,7 +285,7 @@ class FirestoreService {
           'appointmentId': appointmentId,
           'type': 'review_counsellor',
           'read': false,
-              'createdAt': DateTime.now().millisecondsSinceEpoch,
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
         });
 
         // Notify counsellor to comment on progress
@@ -297,7 +299,7 @@ class FirestoreService {
           'appointmentId': appointmentId,
           'type': 'add_progress_notes',
           'read': false,
-              'createdAt': DateTime.now().millisecondsSinceEpoch,
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
         });
       }
     }
@@ -320,9 +322,14 @@ class FirestoreService {
       final reminderSent = data['studentReminderSent'] as bool? ?? false;
       final statusStr = data['status'] as String? ?? 'pending';
       if (start == null || studentId == null) continue;
-      final isConfirmed = statusStr == AppointmentStatus.confirmed.name || statusStr == AppointmentStatus.pending.name;
+      final isConfirmed = statusStr == AppointmentStatus.confirmed.name ||
+          statusStr == AppointmentStatus.pending.name;
       final timeToStart = start - now;
-      if (!reminderSent && isConfirmed && timeToStart > 0 && timeToStart <= fiveMinMs && studentId == userId) {
+      if (!reminderSent &&
+          isConfirmed &&
+          timeToStart > 0 &&
+          timeToStart <= fiveMinMs &&
+          studentId == userId) {
         await _firestore
             .collection('users')
             .doc(userId)
@@ -404,16 +411,17 @@ class FirestoreService {
         .snapshots()
         .map((snap) => snap.docs
             .map((doc) => Appointment.fromJson(doc.data(), doc.id))
-            .where((a) => a.studentRating != null ||
+            .where((a) =>
+                a.studentRating != null ||
                 (a.studentComment != null && a.studentComment!.isNotEmpty))
             .toList());
   }
 
   Future<void> approveReview(String appointmentId) {
-    return _firestore
-        .collection('appointments')
-        .doc(appointmentId)
-        .update({'isReviewApproved': true, 'updatedAt': DateTime.now().millisecondsSinceEpoch});
+    return _firestore.collection('appointments').doc(appointmentId).update({
+      'isReviewApproved': true,
+      'updatedAt': DateTime.now().millisecondsSinceEpoch
+    });
   }
 
   Stream<List<UserProfile>> counsellors() {

@@ -176,7 +176,8 @@ class AuthService {
 
     // Use Identity Toolkit REST API to create user without affecting SDK session
     final apiKey = DefaultFirebaseOptions.currentPlatform.apiKey;
-    final uri = Uri.parse('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$apiKey');
+    final uri = Uri.parse(
+        'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$apiKey');
     final resp = await http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
@@ -188,7 +189,8 @@ class AuthService {
     );
 
     if (resp.statusCode != 200) {
-      print('✗ Failed to create user via REST: ${resp.statusCode} ${resp.body}');
+      print(
+          '✗ Failed to create user via REST: ${resp.statusCode} ${resp.body}');
       throw 'Failed to create counsellor: ${resp.body}';
     }
 

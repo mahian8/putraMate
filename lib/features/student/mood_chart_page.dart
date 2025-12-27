@@ -30,7 +30,12 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
     {'emoji': '😄', 'label': 'Amazing', 'score': 5, 'color': Colors.green},
     {'emoji': '😊', 'label': 'Good', 'score': 4, 'color': Colors.lightGreen},
     {'emoji': '😐', 'label': 'Neutral', 'score': 3, 'color': Colors.orange},
-    {'emoji': '😕', 'label': 'Not Great', 'score': 2, 'color': Colors.deepOrange},
+    {
+      'emoji': '😕',
+      'label': 'Not Great',
+      'score': 2,
+      'color': Colors.deepOrange
+    },
     {'emoji': '😢', 'label': 'Struggling', 'score': 1, 'color': Colors.red},
   ];
 
@@ -48,7 +53,7 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
 
     try {
       final note = _noteController.text.trim();
-      
+
       // Analyze sentiment with AI, then apply simple keyword fallback
       Map<String, dynamic> sentiment = {};
       if (note.isNotEmpty) {
@@ -60,7 +65,13 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
           final lower = note.toLowerCase();
           final criticalWords = ['suicide', 'kill myself', 'end my life'];
           final highWords = ['hopeless', 'worthless', 'panic', 'panic attack'];
-          final mediumWords = ['anxious', 'depressed', 'sad', 'lonely', 'stressed'];
+          final mediumWords = [
+            'anxious',
+            'depressed',
+            'sad',
+            'lonely',
+            'stressed'
+          ];
 
           if (criticalWords.any((w) => lower.contains(w))) {
             sentiment = {
@@ -89,24 +100,26 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
         timestamp: DateTime.now(),
         sentiment: sentiment['sentiment'] as String?,
         riskLevel: sentiment['riskLevel'] as String?,
-        flaggedForCounsellor: (sentiment['riskLevel'] == 'high' || 
-                   sentiment['riskLevel'] == 'critical'),
+        flaggedForCounsellor: (sentiment['riskLevel'] == 'high' ||
+            sentiment['riskLevel'] == 'critical'),
       );
 
       await ref.read(firestoreServiceProvider).addMoodEntry(entry);
 
       // Flag low moods or concerning sentiment to counsellors
-      if ((_selectedMood <= 2) || 
-          (sentiment['riskLevel'] == 'high' || sentiment['riskLevel'] == 'critical')) {
+      if ((_selectedMood <= 2) ||
+          (sentiment['riskLevel'] == 'high' ||
+              sentiment['riskLevel'] == 'critical')) {
         final profile = ref.read(userProfileProvider).value;
         if (profile != null) {
           await ref.read(firestoreServiceProvider).flagHighRiskStudent(
-            studentId: user.uid,
-            studentName: profile.displayName,
-            riskLevel: sentiment['riskLevel'] ?? 'medium',
-            sentiment: sentiment['sentiment'] ?? 'concerning',
-            message: 'Mood: ${_moods.firstWhere((m) => m['score'] == _selectedMood)['label']}. Note: $note',
-          );
+                studentId: user.uid,
+                studentName: profile.displayName,
+                riskLevel: sentiment['riskLevel'] ?? 'medium',
+                sentiment: sentiment['sentiment'] ?? 'concerning',
+                message:
+                    'Mood: ${_moods.firstWhere((m) => m['score'] == _selectedMood)['label']}. Note: $note',
+              );
         }
       }
 
@@ -154,7 +167,7 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
-    
+
     if (user == null) {
       return const PrimaryScaffold(
         title: 'Mood Tracker',
@@ -162,7 +175,8 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
       );
     }
 
-    final moodStream = ref.watch(firestoreServiceProvider).moodEntries(user.uid);
+    final moodStream =
+        ref.watch(firestoreServiceProvider).moodEntries(user.uid);
 
     return PrimaryScaffold(
       title: 'Mood Tracker',
@@ -170,7 +184,7 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
         stream: moodStream,
         builder: (context, snapshot) {
           final entries = snapshot.data ?? [];
-          
+
           return ListView(
             children: [
               // Log New Mood
@@ -184,7 +198,8 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
                   children: [
                     const Text(
                       'Select your mood:',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 20),
                     Wrap(
@@ -194,13 +209,15 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
                       children: _moods.map((mood) {
                         final isSelected = _selectedMood == mood['score'];
                         return GestureDetector(
-                          onTap: () => setState(() => _selectedMood = mood['score'] as int),
+                          onTap: () => setState(
+                              () => _selectedMood = mood['score'] as int),
                           child: Container(
                             width: 80,
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? (mood['color'] as Color).withValues(alpha: 0.2)
+                                  ? (mood['color'] as Color)
+                                      .withValues(alpha: 0.2)
                                   : Colors.grey[100],
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
@@ -223,8 +240,12 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
                                   mood['label'] as String,
                                   style: TextStyle(
                                     fontSize: 12,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                    color: isSelected ? (mood['color'] as Color) : Colors.black87,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: isSelected
+                                        ? (mood['color'] as Color)
+                                        : Colors.black87,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -266,7 +287,8 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
                   child: Column(
                     children: [
                       if (entries.length < 2)
-                        const Center(child: Text('Log more moods to see distribution'))
+                        const Center(
+                            child: Text('Log more moods to see distribution'))
                       else
                         Column(
                           children: [
@@ -278,7 +300,8 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
                                 child: CustomPaint(
                                   size: const Size(200, 200),
                                   painter: _PieChartPainter(
-                                    moodCounts: _calculateMoodDistribution(entries.take(30).toList()),
+                                    moodCounts: _calculateMoodDistribution(
+                                        entries.take(30).toList()),
                                     moods: _moods,
                                   ),
                                 ),
@@ -291,7 +314,10 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
                               spacing: 16,
                               runSpacing: 8,
                               children: _moods.map((mood) {
-                                final count = _calculateMoodDistribution(entries.take(30).toList())[mood['score']] ?? 0;
+                                final count = _calculateMoodDistribution(entries
+                                        .take(30)
+                                        .toList())[mood['score']] ??
+                                    0;
                                 return Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -342,11 +368,14 @@ class _MoodChartPageState extends ConsumerState<MoodChartPage> {
                               ),
                             ),
                           ),
-                          title: Text(entry.note.isEmpty ? 'No note' : entry.note),
-                          subtitle: Text(DateFormat('MMM d, y h:mm a').format(entry.timestamp)),
+                          title:
+                              Text(entry.note.isEmpty ? 'No note' : entry.note),
+                          subtitle: Text(DateFormat('MMM d, y h:mm a')
+                              .format(entry.timestamp)),
                           trailing: entry.flaggedForCounsellor
                               ? Chip(
-                                  label: const Text('Flagged', style: TextStyle(fontSize: 10)),
+                                  label: const Text('Flagged',
+                                      style: TextStyle(fontSize: 10)),
                                   backgroundColor: Colors.orange.shade100,
                                 )
                               : null,
@@ -374,10 +403,10 @@ class _PieChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2 * 0.8;
-    
+
     // Calculate total count
     final totalCount = moodCounts.values.fold(0, (a, b) => a + b);
-    
+
     if (totalCount == 0) return;
 
     double startAngle = -90 * 3.14159 / 180; // Start from top
@@ -385,10 +414,10 @@ class _PieChartPainter extends CustomPainter {
     for (var mood in moods) {
       final score = mood['score'] as int;
       final count = moodCounts[score] ?? 0;
-      
+
       if (count > 0) {
         final sweepAngle = (count / totalCount) * 2 * 3.14159;
-        
+
         final paint = Paint()
           ..color = mood['color'] as Color
           ..style = PaintingStyle.fill;
@@ -420,7 +449,7 @@ class _PieChartPainter extends CustomPainter {
           final middleAngle = startAngle + sweepAngle / 2;
           final textX = center.dx + radius * 0.6 * cos(middleAngle);
           final textY = center.dy + radius * 0.6 * sin(middleAngle);
-          
+
           final percentage = ((count / totalCount) * 100).toStringAsFixed(0);
           final textSpan = TextSpan(
             text: '$percentage%',
@@ -430,16 +459,17 @@ class _PieChartPainter extends CustomPainter {
               fontWeight: FontWeight.bold,
             ),
           );
-          
+
           final textPainter = TextPainter(
             text: textSpan,
             textAlign: TextAlign.center,
           )..textDirection = ui.TextDirection.ltr;
-          
+
           textPainter.layout();
           textPainter.paint(
             canvas,
-            Offset(textX - textPainter.width / 2, textY - textPainter.height / 2),
+            Offset(
+                textX - textPainter.width / 2, textY - textPainter.height / 2),
           );
         }
 

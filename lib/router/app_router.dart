@@ -84,12 +84,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         return isLoggingIn ? null : '/login';
       }
       if (isLoggingIn) return _dashboardPath(role);
-      if (state.matchedLocation == '/' || state.matchedLocation == '/dashboard') {
+      if (state.matchedLocation == '/' ||
+          state.matchedLocation == '/dashboard') {
         return _dashboardPath(role);
       }
 
       final path = state.matchedLocation;
-      if (role == UserRole.student && (path.startsWith('/counsellor') || path.startsWith('/admin'))) {
+      if (role == UserRole.student &&
+          (path.startsWith('/counsellor') || path.startsWith('/admin'))) {
         return _dashboardPath(role);
       }
       if (role == UserRole.counsellor && path.startsWith('/admin')) {

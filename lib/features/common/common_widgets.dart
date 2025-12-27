@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import '../../models/user_profile.dart';
 
 class PrimaryScaffold extends StatelessWidget {
-  const PrimaryScaffold({super.key, required this.title, this.actions, required this.body, this.fab});
+  const PrimaryScaffold(
+      {super.key,
+      required this.title,
+      this.actions,
+      required this.body,
+      this.fab});
   final String title;
   final List<Widget>? actions;
   final Widget body;
@@ -10,9 +15,10 @@ class PrimaryScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final footerText = 'All rights reserved by PutraMate (UPM) ${DateTime.now().year}';
+    final footerText =
+        'All rights reserved by PutraMate (UPM) ${DateTime.now().year}';
     return Scaffold(
-        appBar: AppBar(title: Text(title), actions: actions),
+      appBar: AppBar(title: Text(title), actions: actions),
       floatingActionButton: fab,
       body: SafeArea(
         child: Padding(
@@ -24,7 +30,10 @@ class PrimaryScaffold extends StatelessWidget {
               Text(
                 footerText,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.grey[700]),
               ),
             ],
           ),
@@ -35,7 +44,8 @@ class PrimaryScaffold extends StatelessWidget {
 }
 
 class SectionCard extends StatelessWidget {
-  const SectionCard({super.key, required this.title, required this.child, this.trailing});
+  const SectionCard(
+      {super.key, required this.title, required this.child, this.trailing});
   final String title;
   final Widget child;
   final Widget? trailing;
@@ -51,7 +61,9 @@ class SectionCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                Text(title,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
                 const Spacer(),
                 if (trailing != null) trailing!,
               ],
@@ -75,7 +87,8 @@ class EmptyState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.chat_bubble_outline, color: Theme.of(context).colorScheme.primary, size: 48),
+          Icon(Icons.chat_bubble_outline,
+              color: Theme.of(context).colorScheme.primary, size: 48),
           const SizedBox(height: 8),
           Text(message, textAlign: TextAlign.center),
         ],
@@ -104,7 +117,8 @@ class RoleBadge extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Chip(
       backgroundColor: _color(role, scheme).withValues(alpha: 0.12),
-      labelStyle: TextStyle(color: _color(role, scheme), fontWeight: FontWeight.w700),
+      labelStyle:
+          TextStyle(color: _color(role, scheme), fontWeight: FontWeight.w700),
       label: Text(role.name.toUpperCase()),
     );
   }
