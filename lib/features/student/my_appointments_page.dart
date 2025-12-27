@@ -5,6 +5,7 @@ import '../../models/appointment.dart';
 import '../../providers/auth_providers.dart';
 import '../../services/firestore_service.dart';
 import '../common/common_widgets.dart';
+import 'appointment_detail_page.dart';
 
 final _fsProvider = Provider((ref) => FirestoreService());
 
@@ -46,9 +47,29 @@ class MyAppointmentsPage extends ConsumerWidget {
                   title: Text(a.topic ?? 'Session'),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(DateFormat('MMM d, h:mm a').format(a.start)),
                       Text('Status: ${a.status.name}'),
+                      if (a.sessionType == SessionType.online &&
+                          a.meetLink != null &&
+                          a.meetLink!.isNotEmpty)
+                        Row(
+                          children: [
+                            const Icon(Icons.video_call,
+                                color: Colors.green, size: 16),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Meet link available',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       if (a.notes != null) Text('Notes: ${a.notes}'),
                       if (a.isDuplicate)
                         const Text('Potential duplicate booking',
@@ -69,7 +90,16 @@ class MyAppointmentsPage extends ConsumerWidget {
                           icon: const Icon(Icons.rate_review),
                           onPressed: () => _showRatingSheet(context, ref, a.id),
                         )
-                      : null,
+                      : Icon(Icons.arrow_forward_ios,
+                          size: 16, color: Colors.grey),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            AppointmentDetailPage(appointment: a),
+                      ),
+                    );
+                  },
                 ),
               );
             },

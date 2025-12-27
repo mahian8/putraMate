@@ -6,6 +6,7 @@ import '../../router/app_router.dart';
 import '../../services/firestore_service.dart';
 import '../common/common_widgets.dart';
 import 'counsellor_detail_page.dart';
+import 'package:intl/intl.dart';
 
 final _fsProvider = Provider((ref) => FirestoreService());
 
@@ -85,34 +86,114 @@ class CounsellorCatalogPage extends ConsumerWidget {
                         c.email,
                         style: const TextStyle(color: Colors.grey),
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          OutlinedButton(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CounsellorDetailPage(
-                                  counsellor: c,
+                      // Status: inactive / on leave now / upcoming leave
+                      Consumer(builder: (context, ref, _) {
+                        final fs = ref.watch(_fsProvider);
+                        if (!c.isActive) {
+                          return const Padding(
+                            padding: EdgeInsets.only(top: 6),
+                            child: Text('Inactive',
+                                style: TextStyle(color: Colors.redAccent)),
+                          );
+                        }
+                        return StreamBuilder<List<Map<String, dynamic>>>(
+                          stream: fs.userLeaves(c.uid),
+                          builder: (context, snap) {
+                            final nowMs = DateTime.now().millisecondsSinceEpoch;
+                            final leaves = snap.data ?? [];
+                            Map<String, dynamic>? active;
+                            for (final l in leaves) {
+                              final s = (l['startDate'] as int? ?? 0);
+                              final e = (l['endDate'] as int? ?? 0);
+                              if (s <= nowMs && e >= nowMs) {
+                                active = l;
+                                break;
+                              }
+                            }
+                            if (active != null) {
+                              final e = DateTime.fromMillisecondsSinceEpoch(
+                                  active['endDate'] as int);
+                              final type =
+                                  (active['leaveType'] as String?) ?? 'leave';
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  'Out of service now • until ${DateFormat('MMM d, y').format(e)} ($type)',
+                                  style:
+                                      const TextStyle(color: Colors.redAccent),
                                 ),
-                              ),
-                            ),
-                            child: const Text('View Details'),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(
-                            onPressed: () => context.pushNamed(
-                              AppRoute.booking.name,
-                              queryParameters: {
-                                'cid': c.uid,
-                                'cname': c.displayName,
-                              },
-                            ),
-                            child: const Text('Book'),
-                          ),
-                        ],
-                      ),
+                              );
+                            }
+                            leaves.sort((a, b) => (a['startDate'] as int)
+                                .compareTo(b['startDate'] as int));
+                            final upcoming = leaves.firstWhere(
+                                (l) => (l['startDate'] as int) >= nowMs,
+                                orElse: () => {});
+                            if (upcoming.isNotEmpty) {
+                              final s = DateTime.fromMillisecondsSinceEpoch(
+                                  upcoming['startDate'] as int);
+                              final e = DateTime.fromMillisecondsSinceEpoch(
+                                  upcoming['endDate'] as int);
+                              final type =
+                                  (upcoming['leaveType'] as String?) ?? 'leave';
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  'Leave scheduled: ${DateFormat('MMM d').format(s)} - ${DateFormat('MMM d, y').format(e)} ($type)',
+                                  style: const TextStyle(color: Colors.orange),
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        );
+                      }),
+                      const SizedBox(height: 12),
+                      Consumer(builder: (context, ref, _) {
+                        final fs = ref.watch(_fsProvider);
+                        final isInactive = !c.isActive;
+                        return StreamBuilder<List<Map<String, dynamic>>>(
+                          stream: fs.userLeaves(c.uid),
+                          builder: (context, snap) {
+                            final nowMs = DateTime.now().millisecondsSinceEpoch;
+                            final leaves = snap.data ?? [];
+                            final onLeaveNow = leaves.any((l) {
+                              final s = (l['startDate'] as int? ?? 0);
+                              final e = (l['endDate'] as int? ?? 0);
+                              return s <= nowMs && e >= nowMs;
+                            });
+                            final canBook = !isInactive && !onLeaveNow;
+                            return Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                OutlinedButton(
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          CounsellorDetailPage(counsellor: c),
+                                    ),
+                                  ),
+                                  child: const Text('View Details'),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton(
+                                  onPressed: canBook
+                                      ? () => context.pushNamed(
+                                            AppRoute.booking.name,
+                                            queryParameters: {
+                                              'cid': c.uid,
+                                              'cname': c.displayName,
+                                            },
+                                          )
+                                      : null,
+                                  child: const Text('Book'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      }),
                     ],
                   ),
                 ),

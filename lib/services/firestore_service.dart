@@ -81,26 +81,30 @@ class FirestoreService {
   }
 
   // Fetch all completed appointments with reviews for a counsellor (visible to all students)
+  // Uses allAppointments to bypass any participant filtering and ensure universal visibility
   Stream<List<Appointment>> counsellorReviews(String counsellorId) {
     return _firestore
         .collection('appointments')
         .where('counsellorId', isEqualTo: counsellorId)
-        .orderBy('start', descending: true)
         .snapshots()
         .map((snap) {
       final appts = snap.docs
           .map((doc) => Appointment.fromJson(doc.data(), doc.id))
           .where((a) =>
               (a.studentRating != null && a.studentRating! > 0) ||
-              (a.studentComment != null))
+              (a.studentComment != null && a.studentComment!.isNotEmpty))
           .toList();
+
+      // Sort by most recent first
+      appts.sort((a, b) => (b.updatedAt ?? b.createdAt ?? DateTime(2000))
+          .compareTo(a.updatedAt ?? a.createdAt ?? DateTime(2000)));
 
       // Debug: log what we received to help trace visibility
       try {
         print('✓ counsellorReviews for $counsellorId: ${appts.length} items');
         for (final a in appts) {
           print(
-              '  - appt ${a.id} student=${a.studentId} rating=${a.studentRating} commentExists=${a.studentComment != null}');
+              '  - appt ${a.id} student=${a.studentId} rating=${a.studentRating} status=${a.status.name}');
         }
       } catch (_) {}
 
@@ -133,6 +137,16 @@ class FirestoreService {
             .toList());
   }
 
+  // Fetch a single appointment by id
+  Stream<Appointment?> appointmentById(String appointmentId) {
+    return _firestore
+        .collection('appointments')
+        .doc(appointmentId)
+        .snapshots()
+        .map((doc) =>
+            doc.exists ? Appointment.fromJson(doc.data()!, doc.id) : null);
+  }
+
   Future<void> upsertAppointment(Appointment appointment) {
     return _firestore.collection('appointments').doc(appointment.id).set({
       ...appointment.toJson(),
@@ -156,6 +170,15 @@ class FirestoreService {
 
     final startMs = start.millisecondsSinceEpoch;
     final endMs = end.millisecondsSinceEpoch;
+
+    // Block booking if counsellor account is inactive
+    final counsellorDoc =
+        await _firestore.collection('users').doc(counsellorId).get();
+    final counsellorData = counsellorDoc.data() ?? {};
+    final counsellorActive = counsellorData['isActive'] as bool? ?? true;
+    if (!counsellorActive) {
+      throw 'Counsellor account is inactive. Please choose another counsellor.';
+    }
 
     // Check if counsellor is on leave during this time (equality query, filter window in memory)
     final leaveQuery = await _firestore
@@ -257,16 +280,21 @@ class FirestoreService {
 
     // Notify on confirmation
     if (status == AppointmentStatus.confirmed && studentId != null) {
+      String message = 'Your session has been confirmed.';
+      if (meetLink != null && meetLink.isNotEmpty) {
+        message += ' Meet link: $meetLink';
+      }
       await _firestore
           .collection('users')
           .doc(studentId)
           .collection('notifications')
           .add({
         'title': 'Appointment Confirmed',
-        'message': 'Your session has been confirmed.',
+        'message': message,
         'appointmentId': appointmentId,
         'type': 'appointment_confirmed',
         'read': false,
+        'meetLink': meetLink,
         'createdAt': DateTime.now().millisecondsSinceEpoch,
       });
     }
@@ -511,7 +539,7 @@ class FirestoreService {
     return _firestore
         .collection('leaves')
         .where('userId', isEqualTo: userId)
-        .orderBy('startDate', descending: true)
+        .orderBy('startDate')
         .snapshots()
         .map((snap) =>
             snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList());
@@ -775,6 +803,15 @@ class FirestoreService {
 
     final startMs = start.millisecondsSinceEpoch;
     final endMs = end.millisecondsSinceEpoch;
+
+    // Check counsellor active status
+    final counsellorDoc =
+        await _firestore.collection('users').doc(counsellorId).get();
+    final counsellorData = counsellorDoc.data() ?? {};
+    final counsellorActive = counsellorData['isActive'] as bool? ?? true;
+    if (!counsellorActive) {
+      conflicts.add('Counsellor account is inactive.');
+    }
 
     // Check for leave conflicts (equality query, filter window in memory)
     final leaveQuery = await _firestore

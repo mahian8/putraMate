@@ -64,7 +64,29 @@ class _CounsellorDashboardPageState
 
     return PrimaryScaffold(
       title: 'Counsellor Dashboard',
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 8),
+        child: const CircleAvatar(
+          radius: 16,
+          backgroundImage: AssetImage('assets/images/PutraMate.png'),
+        ),
+      ),
+      titleWidget: Row(
+        children: [
+          const Text('PutraMate',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          const Spacer(),
+          Text(
+            'Welcome, ${user.email ?? ''}',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: Colors.white70),
+          ),
+        ],
+      ),
       actions: [
+        const DigitalClock(),
         IconButton(
           icon: const Icon(Icons.logout),
           onPressed: _logout,
@@ -354,47 +376,92 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('MMM d, h:mm a');
+    final fs = ref.watch(_fsProvider);
+
     return Card(
-      child: ListTile(
-        title: Text(widget.appointment.topic ?? 'Session'),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(df.format(widget.appointment.start)),
-            Text(
-                'Type: ${widget.appointment.sessionType == SessionType.online ? "Online" : "Face-to-Face"}'),
-            if (widget.appointment.initialProblem != null)
-              Text('Problem: ${widget.appointment.initialProblem}',
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-            if (widget.appointment.sessionType == SessionType.online &&
-                _meetLink != null)
-              Text('Meet: $_meetLink',
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-            if (widget.showFeedback &&
-                widget.appointment.studentComment != null)
-              Text('Student feedback: ${widget.appointment.studentComment}'),
-          ],
+      child: IntrinsicHeight(
+        child: ListTile(
+          leading: StreamBuilder<UserProfile?>(
+            stream: fs.userProfile(widget.appointment.studentId),
+            builder: (context, snapshot) {
+              final name = snapshot.data?.displayName ?? 'Student';
+              final initial = name.isNotEmpty ? name[0].toUpperCase() : 'S';
+              return CircleAvatar(
+                child: Text(initial),
+              );
+            },
+          ),
+          title: StreamBuilder<UserProfile?>(
+            stream: fs.userProfile(widget.appointment.studentId),
+            builder: (context, snapshot) {
+              final name = snapshot.data?.displayName ?? 'Student';
+              final email = snapshot.data?.email ?? '';
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1),
+                  if (email.isNotEmpty)
+                    Text(email,
+                        style: Theme.of(context).textTheme.bodySmall,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1),
+                ],
+              );
+            },
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 4),
+              Text('Topic: ${widget.appointment.topic ?? 'Session'}',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+              Text(df.format(widget.appointment.start)),
+              Text(
+                  'Type: ${widget.appointment.sessionType == SessionType.online ? "Online" : "Face-to-Face"}'),
+              if (widget.appointment.initialProblem != null)
+                Text('Problem: ${widget.appointment.initialProblem}',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              if (widget.appointment.sessionType == SessionType.online &&
+                  _meetLink != null)
+                Text('Meet: $_meetLink',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              if (widget.showFeedback &&
+                  widget.appointment.studentComment != null)
+                Text('Student feedback: ${widget.appointment.studentComment}',
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+            ],
+          ),
+          trailing: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(widget.appointment.status.name),
+              PopupMenuButton<AppointmentStatus>(
+                onSelected: (status) =>
+                    widget.onUpdate(status, null, null, null),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                      value: AppointmentStatus.confirmed,
+                      child: Text('Confirm')),
+                  PopupMenuItem(
+                      value: AppointmentStatus.completed,
+                      child: Text('Mark done')),
+                  PopupMenuItem(
+                      value: AppointmentStatus.cancelled,
+                      child: Text('Cancel')),
+                ],
+              ),
+            ],
+          ),
+          onTap: _showDetailsDialog,
         ),
-        trailing: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(widget.appointment.status.name),
-            PopupMenuButton<AppointmentStatus>(
-              onSelected: (status) => widget.onUpdate(status, null, null, null),
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                    value: AppointmentStatus.confirmed, child: Text('Confirm')),
-                PopupMenuItem(
-                    value: AppointmentStatus.completed,
-                    child: Text('Mark done')),
-                PopupMenuItem(
-                    value: AppointmentStatus.cancelled, child: Text('Cancel')),
-              ],
-            ),
-          ],
-        ),
-        onTap: _showDetailsDialog,
       ),
     );
   }

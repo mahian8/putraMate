@@ -56,8 +56,79 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
         });
 
         return PrimaryScaffold(
-          title: 'Welcome, ${profile.displayName}',
+          title: 'PutraMate',
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundImage: const AssetImage('assets/images/PutraMate.png'),
+            ),
+          ),
+          titleWidget: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('PutraMate',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                'Welcome, ${profile.displayName}',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.white70),
+              ),
+            ],
+          ),
           actions: [
+            // Quick access: Notifications with unread badge
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: firestoreService.notifications(user.uid),
+              builder: (context, snapshot) {
+                final items = snapshot.data ?? const [];
+                final unread =
+                    items.where((n) => !(n['read'] as bool? ?? false)).length;
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    IconButton(
+                      tooltip: 'Notifications',
+                      icon: const Icon(Icons.notifications),
+                      onPressed: () =>
+                          context.pushNamed(AppRoute.notifications.name),
+                    ),
+                    if (unread > 0)
+                      Positioned(
+                        right: 10,
+                        top: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            unread > 9 ? '9+' : '$unread',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+            // Quick access: Profile
+            IconButton(
+              tooltip: 'Profile',
+              icon: const Icon(Icons.person),
+              onPressed: () => context.pushNamed(AppRoute.profile.name),
+            ),
+            // Digital clock
+            const DigitalClock(),
+            // Menu
             PopupMenuButton<String>(
               icon: const Icon(Icons.menu),
               onSelected: (value) async {
@@ -114,6 +185,14 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                   ),
                 ),
                 const PopupMenuItem(
+                  value: 'notifications',
+                  child: ListTile(
+                    leading: Icon(Icons.notifications, color: Colors.amber),
+                    title: Text('Notifications'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
                   value: 'chat',
                   child: ListTile(
                     leading: Icon(Icons.chat_bubble, color: Colors.purple),
@@ -126,14 +205,6 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                   child: ListTile(
                     leading: Icon(Icons.mood, color: Colors.orange),
                     title: Text('Mood Track'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'notifications',
-                  child: ListTile(
-                    leading: Icon(Icons.notifications, color: Colors.amber),
-                    title: Text('Notifications'),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
@@ -159,6 +230,54 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
           ],
           body: ListView(
             children: [
+              // Quick Access shortcuts
+              SectionCard(
+                title: 'Quick Access',
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => context.pushNamed(AppRoute.profile.name),
+                      icon: const Icon(Icons.person),
+                      label: const Text('Profile'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () =>
+                          context.pushNamed(AppRoute.appointments.name),
+                      icon: const Icon(Icons.calendar_today),
+                      label: const Text('Appointments'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () =>
+                          context.pushNamed(AppRoute.notifications.name),
+                      icon: const Icon(Icons.notifications),
+                      label: const Text('Notifications'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => context.pushNamed(AppRoute.booking.name),
+                      icon: const Icon(Icons.schedule),
+                      label: const Text('Book Session'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () =>
+                          context.pushNamed(AppRoute.studentMood.name),
+                      icon: const Icon(Icons.mood),
+                      label: const Text('Mood Track'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => context.pushNamed(AppRoute.forum.name),
+                      icon: const Icon(Icons.forum),
+                      label: const Text('Community'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => context.pushNamed(AppRoute.chatbot.name),
+                      icon: const Icon(Icons.chat_bubble),
+                      label: const Text('AI Chat'),
+                    ),
+                  ],
+                ),
+              ),
               // Mood Check Reminder
               SectionCard(
                 title: 'How are you feeling today?',
@@ -228,6 +347,70 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                               ),
                             ],
                           ),
+                  );
+                },
+              ),
+
+              // Recent Session Notes (sorted by latest)
+              StreamBuilder<List<Appointment>>(
+                stream: firestoreService.appointmentsForUser(user.uid),
+                builder: (context, snapshot) {
+                  final appointments = snapshot.data ?? [];
+                  final notes = appointments
+                      .where((a) =>
+                          (a.counsellorNotes != null &&
+                              a.counsellorNotes!.isNotEmpty) ||
+                          (a.followUpPlan != null &&
+                              a.followUpPlan!.isNotEmpty))
+                      .toList();
+                  notes.sort((a, b) =>
+                      (b.updatedAt ?? b.end).compareTo(a.updatedAt ?? a.end));
+
+                  if (notes.isEmpty) {
+                    return const SectionCard(
+                      title: 'Recent Session Notes',
+                      child: Text('No session notes yet.'),
+                    );
+                  }
+
+                  return SectionCard(
+                    title: 'Recent Session Notes',
+                    trailing: TextButton(
+                      onPressed: () =>
+                          context.pushNamed(AppRoute.appointments.name),
+                      child: const Text('View All'),
+                    ),
+                    child: Column(
+                      children: [
+                        ...notes.take(5).map((a) => ListTile(
+                              contentPadding:
+                                  const EdgeInsets.symmetric(vertical: 6),
+                              title: Text(DateFormat('MMM d, y • h:mm a')
+                                  .format(a.end)),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (a.counsellorNotes != null &&
+                                      a.counsellorNotes!.isNotEmpty) ...[
+                                    const Text('Counsellor Notes:',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w600)),
+                                    Text(a.counsellorNotes!),
+                                  ],
+                                  if (a.followUpPlan != null &&
+                                      a.followUpPlan!.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    const Text('Follow-up Plan:',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w600)),
+                                    Text(a.followUpPlan!),
+                                  ],
+                                ],
+                              ),
+                            )),
+                      ],
+                    ),
                   );
                 },
               ),

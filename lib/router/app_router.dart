@@ -171,7 +171,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         name: AppRoute.appointmentDetail.name,
         path: '/student/appointment/:id',
-        builder: (context, state) => const AppointmentDetailPage(),
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return AppointmentDetailRoutePage(appointmentId: id);
+        },
       ),
       GoRoute(
         name: AppRoute.forum.name,

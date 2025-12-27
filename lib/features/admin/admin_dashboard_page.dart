@@ -27,7 +27,33 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
     return PrimaryScaffold(
       title: 'Admin Dashboard',
+      leading: const Padding(
+        padding: EdgeInsets.only(left: 8),
+        child: CircleAvatar(
+          radius: 16,
+          backgroundImage: AssetImage('assets/images/PutraMate.png'),
+        ),
+      ),
+      titleWidget: Row(
+        children: [
+          const Text('PutraMate',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          const Spacer(),
+          Consumer(builder: (context, ref, _) {
+            final user = ref.watch(authStateProvider).value;
+            final name = user?.email ?? 'Admin';
+            return Text(
+              'Welcome, $name',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: Colors.white70),
+            );
+          }),
+        ],
+      ),
       actions: [
+        const DigitalClock(),
         IconButton(
           icon: const Icon(Icons.logout),
           tooltip: 'Logout',
@@ -676,15 +702,22 @@ class _ManageCounsellorsTab extends ConsumerWidget {
                       Row(
                         children: [
                           ElevatedButton.icon(
-                            icon: const Icon(Icons.block),
-                            label: const Text('Disable'),
+                            icon: Icon(
+                              counsellor.isActive
+                                  ? Icons.block
+                                  : Icons.check_circle,
+                            ),
+                            label: Text(
+                                counsellor.isActive ? 'Disable' : 'Enable'),
                             onPressed: () async {
                               await authService.toggleUserStatus(
-                                  counsellor.uid, false);
+                                  counsellor.uid, !counsellor.isActive);
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text('Counsellor disabled')),
+                                  SnackBar(
+                                      content: Text(counsellor.isActive
+                                          ? 'Counsellor disabled'
+                                          : 'Counsellor enabled')),
                                 );
                               }
                             },
@@ -771,6 +804,67 @@ class _ManageCounsellorsTab extends ConsumerWidget {
                 label: 'Account Status',
                 value: counsellor.isActive != false ? 'Active' : 'Inactive',
               ),
+              // Leave status (below Counsellor ID)
+              Consumer(builder: (context, ref, _) {
+                final fs = ref.watch(firestoreProvider);
+                return StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: fs.userLeaves(counsellor.uid),
+                  builder: (context, snap) {
+                    final leaves = snap.data ?? [];
+                    if (leaves.isEmpty) {
+                      return const _DetailRow(
+                          label: 'Leave Status', value: 'No leaves');
+                    }
+
+                    final nowMs = DateTime.now().millisecondsSinceEpoch;
+                    // Sort by startDate ascending
+                    leaves.sort((a, b) => (a['startDate'] as int)
+                        .compareTo(b['startDate'] as int));
+
+                    Map<String, dynamic>? active;
+                    for (final l in leaves) {
+                      final s = l['startDate'] as int;
+                      final e = l['endDate'] as int;
+                      if (s <= nowMs && e >= nowMs) {
+                        active = l;
+                        break;
+                      }
+                    }
+
+                    if (active != null) {
+                      final s = DateTime.fromMillisecondsSinceEpoch(
+                          active['startDate'] as int);
+                      final e = DateTime.fromMillisecondsSinceEpoch(
+                          active['endDate'] as int);
+                      final type = (active['leaveType'] as String?) ?? 'leave';
+                      final reason = (active['reason'] as String?) ?? '';
+                      final msg =
+                          'On leave (${type}): ${DateFormat('MMM d').format(s)} - ${DateFormat('MMM d, y').format(e)}${reason.isNotEmpty ? "\nReason: $reason" : ''}';
+                      return _DetailRow(label: 'Leave Status', value: msg);
+                    }
+
+                    // Next upcoming leave (startDate >= now)
+                    final upcoming = leaves.firstWhere(
+                        (l) => (l['startDate'] as int) >= nowMs,
+                        orElse: () => {});
+                    if (upcoming.isNotEmpty) {
+                      final s = DateTime.fromMillisecondsSinceEpoch(
+                          upcoming['startDate'] as int);
+                      final e = DateTime.fromMillisecondsSinceEpoch(
+                          upcoming['endDate'] as int);
+                      final type =
+                          (upcoming['leaveType'] as String?) ?? 'leave';
+                      final reason = (upcoming['reason'] as String?) ?? '';
+                      final msg =
+                          'Scheduled (${type}): ${DateFormat('MMM d').format(s)} - ${DateFormat('MMM d, y').format(e)}${reason.isNotEmpty ? "\nReason: $reason" : ''}';
+                      return _DetailRow(label: 'Leave Status', value: msg);
+                    }
+
+                    return const _DetailRow(
+                        label: 'Leave Status', value: 'No upcoming leaves');
+                  },
+                );
+              }),
               _DetailRow(label: 'User ID', value: counsellor.uid),
             ],
           ),

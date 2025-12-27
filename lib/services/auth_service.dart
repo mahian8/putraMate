@@ -25,12 +25,15 @@ class AuthService {
 
       // Fetch role for logging
       String? role;
+      bool isActive = true;
       try {
         final doc =
             await _firestore.collection('users').doc(cred.user?.uid).get();
         print('✓ User doc fetched: exists=${doc.exists}');
         role = (doc.data()?['role'] as String?);
+        isActive = (doc.data()?['isActive'] as bool?) ?? true;
         print('✓ Role fetched: $role');
+        print('✓ isActive fetched: $isActive');
 
         // Auto-create admin profile if logging in with @admin.com domain and no profile exists
         if (email.toLowerCase().endsWith('@admin.com') &&
@@ -44,6 +47,13 @@ class AuthService {
           }, SetOptions(merge: true));
           role = 'admin';
           print('✓ Admin profile created');
+        }
+
+        // If counsellor is disabled, block login
+        if ((role == 'counsellor') && !isActive) {
+          print('✗ Counsellor account disabled, blocking login');
+          await _auth.signOut();
+          throw 'This counsellor account has been disabled by admin.';
         }
       } catch (e) {
         print('✗ Error fetching/creating user profile: $e');

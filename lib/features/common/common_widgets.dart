@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../models/user_profile.dart';
 
 class PrimaryScaffold extends StatelessWidget {
-  const PrimaryScaffold(
-      {super.key,
-      required this.title,
-      this.actions,
-      required this.body,
-      this.fab});
+  const PrimaryScaffold({
+    super.key,
+    required this.title,
+    this.titleWidget,
+    this.leading,
+    this.actions,
+    required this.body,
+    this.fab,
+  });
   final String title;
+  final Widget? titleWidget;
+  final Widget? leading;
   final List<Widget>? actions;
   final Widget body;
   final Widget? fab;
@@ -18,7 +24,11 @@ class PrimaryScaffold extends StatelessWidget {
     final footerText =
         'All rights reserved by PutraMate (UPM) ${DateTime.now().year}';
     return Scaffold(
-      appBar: AppBar(title: Text(title), actions: actions),
+      appBar: AppBar(
+        leading: leading,
+        title: titleWidget ?? Text(title),
+        actions: actions,
+      ),
       floatingActionButton: fab,
       body: SafeArea(
         child: Padding(
@@ -121,5 +131,78 @@ class RoleBadge extends StatelessWidget {
           TextStyle(color: _color(role, scheme), fontWeight: FontWeight.w700),
       label: Text(role.name.toUpperCase()),
     );
+  }
+}
+
+// Simple digital clock for AppBars
+class DigitalClock extends StatefulWidget {
+  const DigitalClock({super.key});
+
+  @override
+  State<DigitalClock> createState() => _DigitalClockState();
+}
+
+class _DigitalClockState extends State<DigitalClock> {
+  late String _time;
+  late final DateFormat _df;
+  late final Ticker _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _df = DateFormat('HH:mm:ss');
+    _time = _df.format(DateTime.now());
+    _ticker = Ticker(_onTick)..start();
+  }
+
+  void _onTick(Duration _) {
+    final now = DateTime.now();
+    final t = _df.format(now);
+    if (t != _time && mounted) {
+      setState(() => _time = t);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Text(
+        _time,
+        style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]),
+      ),
+    );
+  }
+}
+
+// Lightweight ticker using WidgetsBinding
+class Ticker {
+  Ticker(this.onTick);
+  final void Function(Duration) onTick;
+  bool _running = false;
+  late final Stopwatch _sw = Stopwatch();
+
+  void start() {
+    if (_running) return;
+    _running = true;
+    _sw.start();
+    WidgetsBinding.instance.scheduleFrameCallback(_tick);
+  }
+
+  void _tick(Duration timeStamp) {
+    if (!_running) return;
+    onTick(_sw.elapsed);
+    WidgetsBinding.instance.scheduleFrameCallback(_tick);
+  }
+
+  void dispose() {
+    _running = false;
+    _sw.stop();
   }
 }

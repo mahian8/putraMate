@@ -7,6 +7,9 @@ import '../../services/firestore_service.dart';
 import '../../services/gemini_service.dart';
 import '../common/common_widgets.dart';
 import 'counsellor_detail_page.dart';
+import 'package:intl/intl.dart';
+
+final firestoreProvider = Provider((ref) => FirestoreService());
 
 class BookingCalendarPage extends ConsumerStatefulWidget {
   const BookingCalendarPage(
@@ -139,7 +142,8 @@ class _BookingCalendarPageState extends ConsumerState<BookingCalendarPage> {
             );
           }
 
-          final counsellors = snapshot.data ?? [];
+          final counsellors =
+              (snapshot.data ?? []).where((c) => c.isActive).toList();
 
           if (counsellors.isEmpty) {
             return AlertDialog(
@@ -176,6 +180,89 @@ class _BookingCalendarPageState extends ConsumerState<BookingCalendarPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(c.email),
+                                // Status: inactive / on leave now / upcoming leave / available
+                                Consumer(builder: (context, ref, _) {
+                                  final fs = ref.watch(firestoreProvider);
+                                  return StreamBuilder<
+                                      List<Map<String, dynamic>>>(
+                                    stream: fs.userLeaves(c.uid),
+                                    builder: (context, snap) {
+                                      final nowMs =
+                                          DateTime.now().millisecondsSinceEpoch;
+                                      if (!c.isActive) {
+                                        return Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 4),
+                                          child: Text(
+                                            'Inactive',
+                                            style: const TextStyle(
+                                                color: Colors.redAccent),
+                                          ),
+                                        );
+                                      }
+
+                                      final leaves = snap.data ?? [];
+                                      Map<String, dynamic>? active;
+                                      for (final l in leaves) {
+                                        final s = (l['startDate'] as int? ?? 0);
+                                        final e = (l['endDate'] as int? ?? 0);
+                                        if (s <= nowMs && e >= nowMs) {
+                                          active = l;
+                                          break;
+                                        }
+                                      }
+
+                                      if (active != null) {
+                                        final e =
+                                            DateTime.fromMillisecondsSinceEpoch(
+                                                active['endDate'] as int);
+                                        final type =
+                                            (active['leaveType'] as String?) ??
+                                                'leave';
+                                        return Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 4),
+                                          child: Text(
+                                            'Out of service now • until ${DateFormat('MMM d, y').format(e)} (${type})',
+                                            style: const TextStyle(
+                                                color: Colors.redAccent),
+                                          ),
+                                        );
+                                      }
+
+                                      // Upcoming leave (nearest start >= now)
+                                      leaves.sort((a, b) => (a['startDate']
+                                              as int)
+                                          .compareTo(b['startDate'] as int));
+                                      final upcoming = leaves.firstWhere(
+                                          (l) =>
+                                              (l['startDate'] as int) >= nowMs,
+                                          orElse: () => {});
+                                      if (upcoming.isNotEmpty) {
+                                        final s =
+                                            DateTime.fromMillisecondsSinceEpoch(
+                                                upcoming['startDate'] as int);
+                                        final e =
+                                            DateTime.fromMillisecondsSinceEpoch(
+                                                upcoming['endDate'] as int);
+                                        final type = (upcoming['leaveType']
+                                                as String?) ??
+                                            'leave';
+                                        return Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 4),
+                                          child: Text(
+                                            'Leave scheduled: ${DateFormat('MMM d').format(s)} - ${DateFormat('MMM d, y').format(e)} (${type})',
+                                            style: const TextStyle(
+                                                color: Colors.orange),
+                                          ),
+                                        );
+                                      }
+
+                                      return const SizedBox.shrink();
+                                    },
+                                  );
+                                }),
                                 if (c.expertise != null)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),

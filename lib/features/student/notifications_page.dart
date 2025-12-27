@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/auth_providers.dart';
 import '../common/common_widgets.dart';
 
@@ -49,8 +50,16 @@ class NotificationsPage extends ConsumerWidget {
               final message = item['message'] as String? ?? 'Notification';
               final read = item['read'] as bool? ?? false;
               final createdAtMs = item['createdAt'] as int? ?? 0;
+              final meetLink = item['meetLink'] as String?;
               final createdAt =
                   DateTime.fromMillisecondsSinceEpoch(createdAtMs);
+
+              // Extract text without link if meetLink is in message
+              String displayMessage = message;
+              if (meetLink != null && message.contains(meetLink)) {
+                displayMessage =
+                    message.replaceAll(' Meet link: $meetLink', '');
+              }
 
               return ListTile(
                 leading: Icon(
@@ -59,8 +68,32 @@ class NotificationsPage extends ConsumerWidget {
                       ? Colors.grey
                       : Theme.of(context).colorScheme.primary,
                 ),
-                title: Text(message),
-                subtitle: Text(_formatDate(createdAt)),
+                title: Text(displayMessage),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_formatDate(createdAt)),
+                    if (meetLink != null && meetLink.isNotEmpty)
+                      InkWell(
+                        onTap: () async {
+                          final uri = Uri.parse(meetLink);
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri,
+                                mode: LaunchMode.externalApplication);
+                          }
+                        },
+                        child: Text(
+                          'Join Session: $meetLink',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            decoration: TextDecoration.underline,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
                 trailing: read
                     ? null
                     : Text(

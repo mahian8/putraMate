@@ -132,11 +132,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     enabled: false,
                   ),
                   const SizedBox(height: 12),
+                  // Role badge (remove duplicate text label)
                   Row(
                     children: [
                       RoleBadge(role: profile.role),
-                      const SizedBox(width: 8),
-                      Text(profile.role.name.toUpperCase()),
                     ],
                   ),
                   const SizedBox(height: 24),

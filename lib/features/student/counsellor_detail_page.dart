@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../models/user_profile.dart';
 import '../../models/appointment.dart';
-import '../../services/firestore_service.dart';
 import '../../providers/auth_providers.dart';
 import '../common/common_widgets.dart';
 
@@ -18,18 +17,10 @@ class CounsellorDetailPage extends ConsumerStatefulWidget {
 }
 
 class _CounsellorDetailPageState extends ConsumerState<CounsellorDetailPage> {
-  late Future<List<Appointment>> _reviewsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    final fs = FirestoreService();
-    // Fetch all reviews for this counsellor (visible to all students via Firestore rule)
-    _reviewsFuture = fs.counsellorReviews(widget.counsellor.uid).first;
-  }
-
   @override
   Widget build(BuildContext context) {
+    final fs = ref.watch(firestoreServiceProvider);
+
     return PrimaryScaffold(
       title: 'Counsellor Details',
       body: SingleChildScrollView(
@@ -51,8 +42,8 @@ class _CounsellorDetailPageState extends ConsumerState<CounsellorDetailPage> {
                       ),
                       const SizedBox(height: 8),
                       // Average Rating Display
-                      FutureBuilder<List<Appointment>>(
-                        future: _reviewsFuture,
+                      StreamBuilder<List<Appointment>>(
+                        stream: fs.counsellorReviews(widget.counsellor.uid),
                         builder: (context, snapshot) {
                           if (snapshot.hasData) {
                             final reviews = snapshot.data ?? [];
@@ -120,8 +111,8 @@ class _CounsellorDetailPageState extends ConsumerState<CounsellorDetailPage> {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 12),
-              FutureBuilder<List<Appointment>>(
-                future: _reviewsFuture,
+              StreamBuilder<List<Appointment>>(
+                stream: fs.counsellorReviews(widget.counsellor.uid),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
@@ -154,7 +145,6 @@ class _CounsellorDetailPageState extends ConsumerState<CounsellorDetailPage> {
                     itemCount: reviews.length,
                     itemBuilder: (context, index) {
                       final review = reviews[index];
-                      final fs = ref.watch(firestoreServiceProvider);
 
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 8),
