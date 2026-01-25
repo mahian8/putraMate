@@ -11,6 +11,8 @@ class PrimaryScaffold extends StatelessWidget {
     this.actions,
     required this.body,
     this.fab,
+    this.maxContentWidth = 900,
+    this.contentPadding = const EdgeInsets.all(12),
   });
   final String title;
   final Widget? titleWidget;
@@ -18,26 +20,47 @@ class PrimaryScaffold extends StatelessWidget {
   final List<Widget>? actions;
   final Widget body;
   final Widget? fab;
+  final double maxContentWidth;
+  final EdgeInsetsGeometry contentPadding;
 
   @override
   Widget build(BuildContext context) {
     final footerText =
         'All rights reserved by PutraMate (UPM) ${DateTime.now().year}';
+    final canPop = Navigator.of(context).canPop();
+    final defaultLeading = leading ??
+        (canPop
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).maybePop(),
+              )
+            : null);
     return Scaffold(
       appBar: AppBar(
-        leading: leading,
+        leading: defaultLeading,
         title: titleWidget ?? Text(title),
         actions: actions,
       ),
       floatingActionButton: fab,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            children: [
-              Expanded(child: body),
-              const SizedBox(height: 12),
-              Text(
+        child: Column(
+          children: [
+            Expanded(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxContentWidth),
+                  child: Padding(
+                    padding: contentPadding,
+                    child: body,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
                 footerText,
                 textAlign: TextAlign.center,
                 style: Theme.of(context)
@@ -45,8 +68,8 @@ class PrimaryScaffold extends StatelessWidget {
                     .bodySmall
                     ?.copyWith(color: Colors.grey[700]),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

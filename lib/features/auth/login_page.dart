@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_providers.dart';
 import '../../router/app_router.dart';
-import '../../features/common/common_widgets.dart';
 import '../../models/user_profile.dart';
+import 'register_page.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -88,28 +88,32 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return PrimaryScaffold(
-      title: 'Welcome back',
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Welcome back'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
       body: Stack(
         children: [
+          // Full-screen background image overlay
           Positioned.fill(
-            child: Opacity(
-              opacity: 0.5,
-              child: Image.asset(
-                'assets/images/upmbg.jpg',
-                fit: BoxFit.cover,
-              ),
+            child: Image.asset(
+              'assets/images/upmbg.jpg',
+              fit: BoxFit.cover,
             ),
           ),
-          // Contrast overlay to improve readability over the background image
+          // Contrast overlay for readability
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.25),
+                color: Colors.black.withValues(alpha: 0.4),
               ),
             ),
           ),
           ListView(
+            padding: const EdgeInsets.only(top: 16),
             children: [
               const SizedBox(height: 12),
               Center(
@@ -137,85 +141,117 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_error != null) ...[
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.errorContainer,
-                            border: Border.all(
-                                color: Theme.of(context).colorScheme.error),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.error_outline,
-                                  color: Theme.of(context).colorScheme.error),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  _error!,
-                                  style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.error,
-                                      fontSize: 14),
-                                ),
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_error != null) ...[
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .errorContainer,
+                                border: Border.all(
+                                    color: Theme.of(context).colorScheme.error),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                            ],
+                              child: Row(
+                                children: [
+                                  Icon(Icons.error_outline,
+                                      color:
+                                          Theme.of(context).colorScheme.error),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      _error!,
+                                      style: TextStyle(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .error,
+                                          fontSize: 14),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          TextField(
+                              controller: _email,
+                              decoration:
+                                  const InputDecoration(labelText: 'Email')),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _password,
+                            decoration: InputDecoration(
+                              labelText: 'Password',
+                              suffixIcon: IconButton(
+                                tooltip: _obscurePassword
+                                    ? 'Show password'
+                                    : 'Hide password',
+                                icon: Icon(_obscurePassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility),
+                                onPressed: () => setState(
+                                    () => _obscurePassword = !_obscurePassword),
+                              ),
+                            ),
+                            obscureText: _obscurePassword,
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      TextField(
-                          controller: _email,
-                          decoration:
-                              const InputDecoration(labelText: 'Email')),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _password,
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          suffixIcon: IconButton(
-                            tooltip: _obscurePassword
-                                ? 'Show password'
-                                : 'Hide password',
-                            icon: Icon(_obscurePassword
-                                ? Icons.visibility_off
-                                : Icons.visibility),
-                            onPressed: () => setState(
-                                () => _obscurePassword = !_obscurePassword),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: _loading ? null : _submit,
+                            child: _loading
+                                ? const CircularProgressIndicator()
+                                : const Text('Sign in'),
                           ),
-                        ),
-                        obscureText: _obscurePassword,
+                          const SizedBox(height: 16),
+                          TextButton(
+                            onPressed: () async {
+                              final result = await showDialog(
+                                context: context,
+                                builder: (context) => const RegisterDialog(),
+                              );
+                              if (result == true && mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'Registration successful! Please sign in.'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            },
+                            child: const Text('Create student account'),
+                          ),
+                          TextButton(
+                            onPressed: () =>
+                                context.pushNamed(AppRoute.forgotPassword.name),
+                            child: const Text('Forgot password?'),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loading ? null : _submit,
-                        child: _loading
-                            ? const CircularProgressIndicator()
-                            : const Text('Sign in'),
-                      ),
-                      const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () =>
-                            context.pushNamed(AppRoute.register.name),
-                        child: const Text('Create student account'),
-                      ),
-                      TextButton(
-                        onPressed: () =>
-                            context.pushNamed(AppRoute.forgotPassword.name),
-                        child: const Text('Forgot password?'),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
+              Center(
+                child: Text(
+                  '© 2026 PutraMate - UPM Mental Wellness System',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white70,
+                      ),
+                ),
+              ),
+              const SizedBox(height: 12),
             ],
           ),
         ],

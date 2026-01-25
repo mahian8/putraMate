@@ -17,6 +17,8 @@ class AuthService {
 
   Stream<User?> authStateChanges() => _auth.authStateChanges();
 
+  String currentUserUid() => _auth.currentUser?.uid ?? '';
+
   Future<UserCredential> signIn(String email, String password) async {
     try {
       final cred = await _auth.signInWithEmailAndPassword(
@@ -49,11 +51,17 @@ class AuthService {
           print('✓ Admin profile created');
         }
 
-        // If counsellor is disabled, block login
-        if ((role == 'counsellor') && !isActive) {
+        // Block login for disabled accounts
+        if (role == 'counsellor' && !isActive) {
           print('✗ Counsellor account disabled, blocking login');
           await _auth.signOut();
           throw 'This counsellor account has been disabled by admin.';
+        }
+
+        if (role == 'student' && !isActive) {
+          print('✗ Student account disabled, blocking login');
+          await _auth.signOut();
+          throw 'This student account has been disabled by admin.';
         }
       } catch (e) {
         print('✗ Error fetching/creating user profile: $e');

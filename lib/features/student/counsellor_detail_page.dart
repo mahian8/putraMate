@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../models/user_profile.dart';
 import '../../models/appointment.dart';
@@ -36,11 +37,112 @@ class _CounsellorDetailPageState extends ConsumerState<CounsellorDetailPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        widget.counsellor.displayName,
-                        style: Theme.of(context).textTheme.headlineSmall,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 28,
+                            backgroundColor: Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withOpacity(0.12),
+                            child: Text(
+                              widget.counsellor.displayName.isNotEmpty
+                                  ? widget.counsellor.displayName[0]
+                                      .toUpperCase()
+                                  : '?',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.counsellor.displayName,
+                                  style:
+                                      Theme.of(context).textTheme.headlineSmall,
+                                ),
+                                if (widget.counsellor.designation != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      widget.counsellor.designation!,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                              color: Colors.grey.shade700),
+                                    ),
+                                  ),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.email_outlined,
+                                          size: 16),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          widget.counsellor.email,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                  color: Colors.grey.shade700),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (widget.counsellor.counsellorId != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      'ID: ${widget.counsellor.counsellorId}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                              color: Colors.grey.shade600),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
+                      if (widget.counsellor.expertise != null) ...[
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: widget.counsellor.expertise!
+                              .split(',')
+                              .map((tag) => tag.trim())
+                              .where((tag) => tag.isNotEmpty)
+                              .map(
+                                (tag) => Chip(
+                                  label: Text(tag),
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withOpacity(0.08),
+                                  labelStyle: TextStyle(
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       // Average Rating Display
                       StreamBuilder<List<Appointment>>(
                         stream: fs.counsellorReviews(widget.counsellor.uid),
@@ -56,48 +158,56 @@ class _CounsellorDetailPageState extends ConsumerState<CounsellorDetailPage> {
                               final avgRating =
                                   ratingsOnly.reduce((a, b) => a + b) /
                                       ratingsOnly.length;
-                              return Row(
-                                children: [
-                                  Icon(Icons.star,
-                                      color: Colors.amber, size: 20),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '${avgRating.toStringAsFixed(1)} / 5.0',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.amber.shade700,
+                              return Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.star, color: Colors.amber),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '${avgRating.toStringAsFixed(1)} / 5.0',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '(${ratingsOnly.length} ${ratingsOnly.length == 1 ? 'review' : 'reviews'})',
-                                    style:
-                                        Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                ],
+                                    const SizedBox(width: 8),
+                                    Text(
+                                        'Based on ${ratingsOnly.length} review${ratingsOnly.length == 1 ? '' : 's'}'),
+                                  ],
+                                ),
                               );
                             }
                           }
-                          return const SizedBox.shrink();
+                          return Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Text('No ratings yet'),
+                          );
                         },
                       ),
-                      const SizedBox(height: 8),
-                      if (widget.counsellor.expertise != null) ...[
-                        Chip(
-                            label: Text(
-                                'Expertise: ${widget.counsellor.expertise}')),
-                        const SizedBox(height: 8),
-                      ],
-                      if (widget.counsellor.designation != null)
-                        Text(
-                          'Designation: ${widget.counsellor.designation}',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                      const SizedBox(height: 16),
+                      // Book Appointment Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            context.go(
+                              '/student/booking?cid=${widget.counsellor.uid}&cname=${widget.counsellor.displayName}',
+                            );
+                          },
+                          icon: const Icon(Icons.calendar_today),
+                          label: const Text('Book Appointment'),
                         ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Email: ${widget.counsellor.email}',
-                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],
                   ),

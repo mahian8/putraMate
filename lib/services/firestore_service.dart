@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import '../models/appointment.dart';
 import '../models/forum_post.dart';
-import '../models/journal_entry.dart';
 import '../models/message.dart';
 import '../models/mood_entry.dart';
 import '../models/user_profile.dart';
@@ -26,6 +26,22 @@ class FirestoreService {
             .toList());
   }
 
+  /// Get recent mood entries for Gemini context (last 7 days)
+  Future<List<MoodEntry>> getRecentMoodEntries(String userId) async {
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('moods')
+        .where('timestamp', isGreaterThan: sevenDaysAgo.millisecondsSinceEpoch)
+        .orderBy('timestamp', descending: true)
+        .limit(10)
+        .get();
+    return snapshot.docs
+        .map((doc) => MoodEntry.fromJson(doc.data(), doc.id))
+        .toList();
+  }
+
   Future<void> addMoodEntry(MoodEntry entry) {
     return _firestore
         .collection('users')
@@ -34,24 +50,130 @@ class FirestoreService {
         .add(entry.toJson());
   }
 
-  Stream<List<JournalEntry>> journalEntries(String userId) {
-    return _firestore
+  /// Get counselors whose expertise matches problem keywords
+  Future<List<UserProfile>> getCounselorsByExpertise(
+      List<String> keywords) async {
+    final snapshot = await _firestore
         .collection('users')
-        .doc(userId)
-        .collection('journals')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => JournalEntry.fromJson(doc.data(), doc.id))
-            .toList());
+        .where('role', isEqualTo: 'counsellor')
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    final counselors =
+        snapshot.docs.map((doc) => UserProfile.fromJson(doc.data())).toList();
+
+    // Filter and score by expertise match
+    final scored = counselors
+        .map((c) {
+          final expertise = c.expertise?.toLowerCase() ?? '';
+          var score = 0;
+          for (final keyword in keywords) {
+            if (expertise.contains(keyword.toLowerCase())) {
+              score++;
+            }
+          }
+          return {'counselor': c, 'score': score};
+        })
+        .where((item) => item['score'] as int > 0)
+        .toList();
+
+    // Sort by score descending
+    scored.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
+
+    return scored.map((item) => item['counselor'] as UserProfile).toList();
   }
 
-  Future<void> addJournalEntry(JournalEntry entry) {
-    return _firestore
-        .collection('users')
-        .doc(entry.userId)
-        .collection('journals')
-        .add(entry.toJson());
+  /// Get available time slots for a counselor (next N days, excluding weekends)
+  Future<List<DateTime>> getCounselorAvailableSlots(String counselorId,
+      {int days = 7}) async {
+    final now = DateTime.now();
+    final nowMs = now.millisecondsSinceEpoch;
+    final windowEnd = now.add(Duration(days: days));
+    final windowEndMs = windowEnd.millisecondsSinceEpoch;
+    const maxSlots = 12; // stop early once we have enough slots to show
+    final slots = <DateTime>[];
+
+    // Check appointments and leaves for this counselor (only upcoming window)
+    final appointmentsQuery = _firestore
+        .collection('appointments')
+        .where('counsellorId', isEqualTo: counselorId)
+        .where('start', isGreaterThan: nowMs)
+        .where('start', isLessThanOrEqualTo: windowEndMs)
+        .orderBy('start');
+
+    final leavesQuery = _firestore
+        .collection('leaves')
+        .where('userId', isEqualTo: counselorId)
+        .where('endDate', isGreaterThan: nowMs);
+
+    final results = await Future.wait([
+      appointmentsQuery.get(),
+      leavesQuery.get(),
+    ]);
+
+    final appointmentsSnapshot = results[0];
+    final leavesSnapshot = results[1];
+
+    // Parse bookings and leaves
+    final bookedTimes = appointmentsSnapshot.docs.where((doc) {
+      final status = doc['status'] as String?;
+      // Exclude cancelled appointments - they're available again
+      return status != 'cancelled';
+    }).map((doc) {
+      final data = doc.data();
+      return {
+        'start': (data['start'] as num?)?.toInt() ?? 0,
+        'end': (data['end'] as num?)?.toInt() ?? 0,
+      };
+    }).toList();
+
+    final leavePeriods = leavesSnapshot.docs.map((doc) {
+      final data = doc.data();
+      return {
+        'start': (data['startDate'] as num?)?.toInt() ?? 0,
+        'end': (data['endDate'] as num?)?.toInt() ?? 0,
+      };
+    }).toList();
+
+    // Generate slots for next N days, excluding weekends, and stop early when enough found
+    DateTime current =
+        DateTime(now.year, now.month, now.day, 9, 0); // Start at 9 AM
+    final endDate = windowEnd;
+
+    while (current.isBefore(endDate) && slots.length < maxSlots) {
+      // Skip weekends (Saturday=6, Sunday=7)
+      if (current.weekday != 6 && current.weekday != 7) {
+        // Generate 45-minute slots from 9 AM to 5 PM
+        if (current.hour < 17) {
+          final slotStart = current.millisecondsSinceEpoch;
+          final slotEnd =
+              current.add(const Duration(minutes: 45)).millisecondsSinceEpoch;
+
+          // Check if slot is available (not booked and not on leave)
+          final isBooked = bookedTimes.any((booking) =>
+              booking['start']! < slotEnd && booking['end']! > slotStart);
+
+          final isOnLeave = leavePeriods.any((leave) =>
+              leave['start']! <= slotStart && leave['end']! >= slotEnd);
+
+          if (!isBooked &&
+              !isOnLeave &&
+              current.isAfter(now.add(Duration(hours: 1)))) {
+            slots.add(current);
+          }
+
+          current = current.add(const Duration(minutes: 45));
+        } else {
+          current =
+              DateTime(current.year, current.month, current.day + 1, 9, 0);
+        }
+      } else {
+        current = current.add(const Duration(days: 1));
+        current = DateTime(current.year, current.month, current.day, 9, 0);
+      }
+    }
+
+    return slots;
   }
 
   Stream<List<Appointment>> appointmentsForUser(String userId) {
@@ -73,11 +195,40 @@ class FirestoreService {
     return _firestore
         .collection('appointments')
         .where('counsellorId', isEqualTo: counsellorId)
-        .orderBy('start')
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => Appointment.fromJson(doc.data(), doc.id))
-            .toList());
+        .map((snap) {
+      final list = snap.docs
+          .map((doc) => Appointment.fromJson(doc.data(), doc.id))
+          .where((a) => a.status != AppointmentStatus.cancelled)
+          .toList();
+      // Sort by start time in code instead of Firestore (avoids index requirement)
+      list.sort((a, b) => a.start.compareTo(b.start));
+      return list;
+    });
+  }
+
+  Future<List<Appointment>> appointmentsForCounsellorOnce(
+      String counsellorId) async {
+    final snap = await _firestore
+        .collection('appointments')
+        .where('counsellorId', isEqualTo: counsellorId)
+        .get();
+    return snap.docs
+        .map((doc) => Appointment.fromJson(doc.data(), doc.id))
+        .where((a) => a.status != AppointmentStatus.cancelled)
+        .toList();
+  }
+
+  Future<List<Appointment>> counsellorAppointmentsOverlapping({
+    required String counsellorId,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final appts = await appointmentsForCounsellorOnce(counsellorId);
+    return appts
+        .where((a) => a.end.isAfter(start) && a.start.isBefore(end))
+        .toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
   }
 
   // Fetch all completed appointments with reviews for a counsellor (visible to all students)
@@ -243,6 +394,69 @@ class FirestoreService {
 
     await upsertAppointment(appointment);
 
+    // Flag high-risk student to counsellor NOW that they've booked
+    if ((riskLevel == 'high' || riskLevel == 'critical') && sentiment != null) {
+      try {
+        final studentDoc =
+            await _firestore.collection('users').doc(studentId).get();
+        final studentData = studentDoc.data() ?? {};
+        final studentName = studentData['displayName'] as String? ?? 'Student';
+
+        await flagHighRiskStudent(
+          studentId: studentId,
+          studentName: studentName,
+          riskLevel: riskLevel!,
+          sentiment: sentiment,
+          message:
+              initialProblem ?? 'High-risk sentiment detected during booking',
+        );
+      } catch (_) {
+        // Non-blocking: ignore flagging failure
+      }
+    }
+
+    // Also flag if mood pattern was critical
+    if (riskLevel == null &&
+        initialProblem != null &&
+        initialProblem.contains('mood')) {
+      try {
+        final moodEntries = await getRecentMoodEntries(studentId);
+        if (moodEntries.isNotEmpty) {
+          final moodMap = moodEntries
+              .map((m) => {
+                    'moodScore': m.moodScore,
+                    'note': m.note,
+                    'timestamp': m.timestamp.millisecondsSinceEpoch,
+                  })
+              .toList();
+
+          if (moodMap.isNotEmpty) {
+            final scores =
+                moodMap.map((m) => m['moodScore'] as int? ?? 5).toList();
+            final avgScore = scores.reduce((a, b) => a + b) / scores.length;
+            if (avgScore <= 3) {
+              final studentDoc =
+                  await _firestore.collection('users').doc(studentId).get();
+              final studentData = studentDoc.data() ?? {};
+              final studentName =
+                  studentData['displayName'] as String? ?? 'Student';
+
+              await flagHighRiskStudent(
+                studentId: studentId,
+                studentName: studentName,
+                riskLevel: 'high',
+                sentiment: 'concerning',
+                message:
+                    'Critical mood pattern detected: Multiple low mood entries this week',
+              );
+            }
+          }
+        }
+      } catch (_) {
+        // Non-blocking
+      }
+    }
+
     // Ensure student profile reflects counsellor assignment for visibility
     try {
       await _firestore.collection('users').doc(studentId).set({
@@ -333,6 +547,108 @@ class FirestoreService {
     }
   }
 
+  /// Update appointment with location field (for face-to-face sessions)
+  Future<void> updateAppointmentWithLocation({
+    required String appointmentId,
+    required AppointmentStatus status,
+    String? counsellorNotes,
+    String? followUpPlan,
+    String? meetLink,
+    String? location,
+  }) async {
+    await _firestore.collection('appointments').doc(appointmentId).set({
+      'status': status.name,
+      if (counsellorNotes != null) 'counsellorNotes': counsellorNotes,
+      if (followUpPlan != null) 'followUpPlan': followUpPlan,
+      if (meetLink != null) 'meetLink': meetLink,
+      if (location != null) 'location': location,
+      'updatedAt': DateTime.now().millisecondsSinceEpoch,
+    }, SetOptions(merge: true));
+
+    // If location provided and pending, send notification
+    final apptSnap =
+        await _firestore.collection('appointments').doc(appointmentId).get();
+    final data = apptSnap.data() ?? {};
+    final studentId = data['studentId'] as String?;
+
+    if (location != null && location.isNotEmpty && studentId != null) {
+      await _firestore
+          .collection('users')
+          .doc(studentId)
+          .collection('notifications')
+          .add({
+        'title': 'Meeting Location Added',
+        'message':
+            'Your counsellor has provided the meeting location: $location',
+        'appointmentId': appointmentId,
+        'type': 'location_added',
+        'read': false,
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+  }
+
+  /// Submit reschedule request for admin review
+  Future<void> submitRescheduleRequest({
+    required String appointmentId,
+    required String counsellorId,
+    required String studentId,
+    required DateTime oldStart,
+    required DateTime newStart,
+    required DateTime newEnd,
+    required String reason,
+  }) async {
+    // Create reschedule request document
+    await _firestore.collection('reschedule_requests').add({
+      'appointmentId': appointmentId,
+      'counsellorId': counsellorId,
+      'studentId': studentId,
+      'oldStart': oldStart.millisecondsSinceEpoch,
+      'newStart': newStart.millisecondsSinceEpoch,
+      'newEnd': newEnd.millisecondsSinceEpoch,
+      'reason': reason,
+      'status': 'pending', // pending, approved, rejected
+      'requestedAt': DateTime.now().millisecondsSinceEpoch,
+    });
+
+    // Notify student
+    await _firestore
+        .collection('users')
+        .doc(studentId)
+        .collection('notifications')
+        .add({
+      'title': 'Reschedule Request',
+      'message':
+          'Your counsellor has requested to reschedule your appointment. Awaiting admin approval.',
+      'appointmentId': appointmentId,
+      'type': 'reschedule_requested',
+      'read': false,
+      'createdAt': DateTime.now().millisecondsSinceEpoch,
+    });
+
+    // Notify admin (find all admin users)
+    final admins = await _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'admin')
+        .get();
+
+    for (final admin in admins.docs) {
+      await _firestore
+          .collection('users')
+          .doc(admin.id)
+          .collection('notifications')
+          .add({
+        'title': 'Reschedule Request Pending',
+        'message':
+            'A counsellor has requested to reschedule an appointment. Reason: $reason',
+        'appointmentId': appointmentId,
+        'type': 'reschedule_review',
+        'read': false,
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+  }
+
   /// Send a reminder notification to the student 5 minutes before start time.
   /// Marks `studentReminderSent: true` on the appointment to avoid duplicates.
   Future<void> sendUpcomingReminderIfDue(String userId) async {
@@ -416,6 +732,7 @@ class FirestoreService {
       if (comment != null) 'studentComment': comment,
       'status': AppointmentStatus.completed.name,
       'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      'isReviewApproved': true,
     }, SetOptions(merge: true));
   }
 
@@ -518,6 +835,88 @@ class FirestoreService {
   }
 
   // Leave management
+  /// Submit a leave request (pending approval)
+  Future<void> submitLeaveRequest({
+    required String userId,
+    required String counsellorName,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String reason,
+    required String leaveType,
+  }) async {
+    await _firestore.collection('leave_requests').add({
+      'userId': userId,
+      'counsellorName': counsellorName,
+      'startDate': startDate.millisecondsSinceEpoch,
+      'endDate': endDate.millisecondsSinceEpoch,
+      'reason': reason,
+      'leaveType': leaveType,
+      'status': 'pending',
+      'createdAt': DateTime.now().millisecondsSinceEpoch,
+    });
+
+    // Notify all admins
+    final admins = await _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'admin')
+        .get();
+
+    for (final admin in admins.docs) {
+      await _firestore
+          .collection('users')
+          .doc(admin.id)
+          .collection('notifications')
+          .add({
+        'title': 'New Leave Request',
+        'message':
+            '$counsellorName has requested leave from ${DateFormat('MMM d').format(startDate)} to ${DateFormat('MMM d').format(endDate)}',
+        'type': 'leave_request',
+        'read': false,
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+  }
+
+  /// Get all pending leave requests
+  Stream<List<Map<String, dynamic>>> pendingLeaveRequests() {
+    return _firestore
+        .collection('leave_requests')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList());
+  }
+
+  /// Process leave request (approve or decline)
+  Future<void> processLeaveRequest(String requestId, bool approved) async {
+    final requestDoc =
+        await _firestore.collection('leave_requests').doc(requestId).get();
+    if (!requestDoc.exists) return;
+
+    final data = requestDoc.data()!;
+
+    if (approved) {
+      // Add to leaves collection if approved
+      await _firestore.collection('leaves').add({
+        'userId': data['userId'],
+        'startDate': data['startDate'],
+        'endDate': data['endDate'],
+        'reason': data['reason'],
+        'leaveType': data['leaveType'],
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+        'approvedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+
+    // Update request status
+    await requestDoc.reference.update({
+      'status': approved ? 'approved' : 'declined',
+      'processedAt': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  /// Add leave directly (for admins, bypasses approval)
   Future<void> addLeave({
     required String userId,
     required DateTime startDate,
@@ -547,6 +946,13 @@ class FirestoreService {
 
   Future<void> deleteLeave(String leaveId) {
     return _firestore.collection('leaves').doc(leaveId).delete();
+  }
+
+  /// Admin: Get all leaves across counsellors
+  Stream<List<Map<String, dynamic>>> allLeaves() {
+    return _firestore.collection('leaves').orderBy('startDate').snapshots().map(
+        (snap) =>
+            snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList());
   }
 
   Stream<List<ForumPost>> communityPosts() {
@@ -590,6 +996,107 @@ class FirestoreService {
     }
 
     await batch.commit();
+  }
+
+  Future<void> markNotificationRead(String userId, String notificationId) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('notifications')
+        .doc(notificationId)
+        .update({'read': true});
+  }
+
+  /// Send a generic notification to a user
+  Future<void> sendNotification({
+    required String userId,
+    required String title,
+    required String message,
+    required String type,
+    String? appointmentId,
+  }) async {
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('notifications')
+        .add({
+      'title': title,
+      'message': message,
+      'type': type,
+      if (appointmentId != null) 'appointmentId': appointmentId,
+      'read': false,
+      'createdAt': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  /// Send a mood tracking reminder if user hasn't logged mood in over 24 hours.
+  /// Marks a flag to avoid duplicate reminders within the same day.
+  Future<void> sendMoodTrackingReminderIfDue(String userId) async {
+    try {
+      final now = DateTime.now();
+      final oneDayAgo = now.subtract(const Duration(days: 1));
+
+      // Check if user has logged mood in the last 24 hours
+      final recentMoodSnap = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('moods')
+          .where('timestamp', isGreaterThan: oneDayAgo.millisecondsSinceEpoch)
+          .limit(1)
+          .get();
+
+      // If they have recent mood entries, don't send reminder
+      if (recentMoodSnap.docs.isNotEmpty) {
+        return;
+      }
+
+      // Check if we've already sent a reminder today
+      final todayStart =
+          DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+      final existingReminderSnap = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('notifications')
+          .where('type', isEqualTo: 'mood_tracking_reminder')
+          .where('createdAt', isGreaterThan: todayStart)
+          .limit(1)
+          .get();
+
+      // If we've already sent a reminder today, don't send another
+      if (existingReminderSnap.docs.isNotEmpty) {
+        return;
+      }
+
+      // Array of caring messages
+      final messages = [
+        'Oh dear, let us know how you feel today 💙',
+        'How\'s your day going? We\'d love to hear from you 🌟',
+        'We didn\'t hear from you today. Are you okay, dear? 💭',
+        'Hey there! How are you feeling today? 😊',
+        'It\'s been a while. Share your feelings with us 💚',
+        'Take a moment to check in with yourself today 🌸',
+      ];
+
+      // Pick a random message
+      final randomMessage =
+          messages[DateTime.now().millisecond % messages.length];
+
+      // Send the notification
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('notifications')
+          .add({
+        'title': 'Mood Check-in',
+        'message': randomMessage,
+        'type': 'mood_tracking_reminder',
+        'read': false,
+        'createdAt': now.millisecondsSinceEpoch,
+      });
+    } catch (e) {
+      // Non-blocking: silently fail if reminder can't be sent
+      print('Error sending mood tracking reminder: $e');
+    }
   }
 
   Future<void> addForumPost(ForumPost post) {
@@ -838,6 +1345,11 @@ class FirestoreService {
 
     final hasConflict = appointmentQuery.docs.any((doc) {
       final data = doc.data();
+      final statusStr = data['status'] as String?;
+      // Only consider confirmed and pending appointments as conflicts
+      if (statusStr == 'cancelled') {
+        return false;
+      }
       final apptStart = (data['start'] as num?)?.toInt() ?? 0;
       final apptEnd = (data['end'] as num?)?.toInt() ?? 0;
       return apptStart < endMs && apptEnd > startMs;
@@ -851,8 +1363,7 @@ class FirestoreService {
   }
 
   // Update user profile
-  Future<void> updateUserProfile(
-      {required String uid, required Map<String, dynamic> data}) {
+  Future<void> updateUserProfile(String uid, Map<String, dynamic> data) {
     return _firestore.collection('users').doc(uid).update(data);
   }
 

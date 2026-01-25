@@ -21,6 +21,7 @@ class UserProfile {
     this.expertise,
     this.isActive = true,
     this.requirePasswordChange = false,
+    this.demoViewed = false,
   });
 
   final String uid;
@@ -28,28 +29,29 @@ class UserProfile {
   final String displayName;
   final UserRole role;
   final String? photoUrl;
-  
+
   // Student details
   final String? studentId;
   final String? phoneNumber;
   final String? dateOfBirth;
   final String? gender;
-  
+
   // Medical information
   final String? bloodType;
   final String? allergies;
   final String? medicalConditions;
   final String? emergencyContact;
   final String? emergencyContactPhone;
-  
+
   // Counsellor details
   final String? counsellorId;
   final String? designation;
   final String? expertise;
-  
+
   // Account status
   final bool isActive;
   final bool requirePasswordChange;
+  final bool demoViewed;
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
@@ -72,6 +74,7 @@ class UserProfile {
       expertise: json['expertise'] as String?,
       isActive: json['isActive'] as bool? ?? true,
       requirePasswordChange: json['requirePasswordChange'] as bool? ?? false,
+      demoViewed: json['demoViewed'] as bool? ?? false,
     );
   }
 
@@ -90,12 +93,14 @@ class UserProfile {
       if (allergies != null) 'allergies': allergies,
       if (medicalConditions != null) 'medicalConditions': medicalConditions,
       if (emergencyContact != null) 'emergencyContact': emergencyContact,
-      if (emergencyContactPhone != null) 'emergencyContactPhone': emergencyContactPhone,
+      if (emergencyContactPhone != null)
+        'emergencyContactPhone': emergencyContactPhone,
       if (counsellorId != null) 'counsellorId': counsellorId,
       if (designation != null) 'designation': designation,
       if (expertise != null) 'expertise': expertise,
       'isActive': isActive,
       'requirePasswordChange': requirePasswordChange,
+      'demoViewed': demoViewed,
     };
   }
 

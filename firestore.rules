@@ -51,16 +51,6 @@ service cloud.firestore {
       
       allow delete: if isSignedIn() && isAdmin();
       
-      // Student journals - private to student and their assigned counsellor
-      match /journals/{journalId} {
-        allow read: if isSignedIn() && (
-          request.auth.uid == userId || 
-          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'counsellor')
-        );
-        allow write: if isSignedIn() && request.auth.uid == userId;
-      }
-      
       // Chat history - private to user
       match /chatHistory/{messageId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
@@ -206,7 +196,7 @@ service cloud.firestore {
       );
     }
 
-    // Leaves collection - for counsellors and admins to mark leave
+    // Leaves collection - admin managed
     match /leaves/{leaveId} {
       allow list: if isSignedIn();
       allow read: if isSignedIn() && (
@@ -214,9 +204,18 @@ service cloud.firestore {
         isAdmin() ||
         isStudent()
       );
-      allow create, update, delete: if isSignedIn() && (
-        isCounsellor() || isAdmin()
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    // Leave requests: counsellors create, admins review
+    match /leave_requests/{requestId} {
+      allow list: if isSignedIn() && isAdmin();
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        (isCounsellor() && resource.data.userId == request.auth.uid)
       );
+      allow create: if isSignedIn() && isCounsellor();
+      allow update, delete: if isSignedIn() && isAdmin();
     }
   }
 }

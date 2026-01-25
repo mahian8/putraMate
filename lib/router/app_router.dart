@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../features/admin/admin_dashboard_page.dart';
+import '../features/admin/admin_dashboard_page_clean.dart';
 import '../features/admin/community_moderation_page.dart';
 import '../features/admin/logs_page.dart';
 import '../features/admin/manage_counsellors_page.dart';
@@ -28,7 +28,6 @@ import '../features/student/booking_calendar_page.dart';
 import '../features/student/chatbot_page.dart';
 import '../features/student/community_forum_page.dart';
 import '../features/student/counsellor_catalog_page.dart';
-import '../features/student/journal_page.dart';
 import '../features/student/mood_chart_page.dart';
 import '../features/student/my_appointments_page.dart';
 import '../features/student/student_dashboard_page.dart';
@@ -44,7 +43,6 @@ enum AppRoute {
   dashboard,
   studentDashboard,
   profile,
-  studentJournal,
   studentMood,
   chatbot,
   counsellorCatalog,
@@ -134,11 +132,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: AppRoute.studentDashboard.name,
         path: '/student/dashboard',
         builder: (context, state) => const StudentDashboardPage(),
-      ),
-      GoRoute(
-        name: AppRoute.studentJournal.name,
-        path: '/student/journal',
-        builder: (context, state) => const JournalPage(),
       ),
       GoRoute(
         name: AppRoute.studentMood.name,

@@ -49,8 +49,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     try {
       final fs = FirestoreService();
       await fs.updateUserProfile(
-        uid: user.uid,
-        data: {
+        user.uid,
+        {
           'displayName': _nameController.text.trim(),
           'phoneNumber': _phoneController.text.trim(),
           'dateOfBirth': _dobController.text.trim(),
@@ -105,184 +105,195 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           _emergencyContactController.text = profile.emergencyContact ?? '';
           _emergencyPhoneController.text = profile.emergencyContactPhone ?? '';
 
-          return SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Account Section
-                  Text('Account',
-                      style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Name *',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    initialValue: profile.email,
-                    decoration: const InputDecoration(
-                      labelText: 'Email (cannot change)',
-                      border: OutlineInputBorder(),
-                    ),
-                    enabled: false,
-                  ),
-                  const SizedBox(height: 12),
-                  // Role badge (remove duplicate text label)
-                  Row(
-                    children: [
-                      RoleBadge(role: profile.role),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: SingleChildScrollView(
+                child: Card(
+                  margin: const EdgeInsets.all(16),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Account Section
+                        Text('Account',
+                            style: Theme.of(context).textTheme.headlineSmall),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Name *',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          initialValue: profile.email,
+                          decoration: const InputDecoration(
+                            labelText: 'Email (cannot change)',
+                            border: OutlineInputBorder(),
+                          ),
+                          enabled: false,
+                        ),
+                        const SizedBox(height: 12),
+                        // Role badge (remove duplicate text label)
+                        Row(
+                          children: [
+                            RoleBadge(role: profile.role),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
 
-                  // Personal Details Section
-                  Text('Personal Details',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _studentIdController,
-                    decoration: const InputDecoration(
-                      labelText: 'Student ID',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _phoneController,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone Number',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _dobController,
-                    decoration: const InputDecoration(
-                      labelText: 'Date of Birth',
-                      hintText: 'YYYY-MM-DD',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _genderController,
-                    decoration: const InputDecoration(
-                      labelText: 'Gender',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                        // Personal Details Section
+                        Text('Personal Details',
+                            style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _studentIdController,
+                          decoration: const InputDecoration(
+                            labelText: 'Student ID',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _phoneController,
+                          decoration: const InputDecoration(
+                            labelText: 'Phone Number',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _dobController,
+                          decoration: const InputDecoration(
+                            labelText: 'Date of Birth',
+                            hintText: 'YYYY-MM-DD',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _genderController,
+                          decoration: const InputDecoration(
+                            labelText: 'Gender',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
 
-                  // Medical Information Section
-                  Text('Medical Information',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _bloodTypeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Blood Type',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _allergiesController,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Allergies',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _medicalConditionsController,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Medical Conditions',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                        // Medical Information Section
+                        Text('Medical Information',
+                            style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _bloodTypeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Blood Type',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _allergiesController,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            labelText: 'Allergies',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _medicalConditionsController,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            labelText: 'Medical Conditions',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
 
-                  // Emergency Contact Section
-                  Text('Emergency Contact',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _emergencyContactController,
-                    decoration: const InputDecoration(
-                      labelText: 'Contact Name',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _emergencyPhoneController,
-                    decoration: const InputDecoration(
-                      labelText: 'Contact Phone',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                        // Emergency Contact Section
+                        Text('Emergency Contact',
+                            style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _emergencyContactController,
+                          decoration: const InputDecoration(
+                            labelText: 'Contact Name',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _emergencyPhoneController,
+                          decoration: const InputDecoration(
+                            labelText: 'Contact Phone',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
 
-                  // Save Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: _savingProfile
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.save),
-                      label:
-                          Text(_savingProfile ? 'Saving...' : 'Save Profile'),
-                      onPressed: _savingProfile ? null : _saveProfile,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                        // Save Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            icon: _savingProfile
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.save),
+                            label: Text(
+                                _savingProfile ? 'Saving...' : 'Save Profile'),
+                            onPressed: _savingProfile ? null : _saveProfile,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
 
-                  // Change Password Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      icon: _changingPassword
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.lock_reset),
-                      label: Text(
-                        _changingPassword ? 'Updating...' : 'Change Password',
-                      ),
-                      onPressed: _changingPassword
-                          ? null
-                          : () => _showChangePasswordDialog(context),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                        // Change Password Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            icon: _changingPassword
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.lock_reset),
+                            label: Text(
+                              _changingPassword
+                                  ? 'Updating...'
+                                  : 'Change Password',
+                            ),
+                            onPressed: _changingPassword
+                                ? null
+                                : () => _showChangePasswordDialog(context),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
 
-                  // Sign Out Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: TextButton.icon(
-                      icon: const Icon(Icons.logout),
-                      label: const Text('Sign out'),
-                      onPressed: () async =>
-                          ref.read(authServiceProvider).signOut(),
+                        // Sign Out Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton.icon(
+                            icon: const Icon(Icons.logout),
+                            label: const Text('Sign out'),
+                            onPressed: () async =>
+                                ref.read(authServiceProvider).signOut(),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           );

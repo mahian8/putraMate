@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../providers/auth_providers.dart';
+import '../../router/app_router.dart';
 import '../common/common_widgets.dart';
 
 class NotificationsPage extends ConsumerWidget {
@@ -51,6 +53,9 @@ class NotificationsPage extends ConsumerWidget {
               final read = item['read'] as bool? ?? false;
               final createdAtMs = item['createdAt'] as int? ?? 0;
               final meetLink = item['meetLink'] as String?;
+              final type = item['type'] as String?;
+              final appointmentId = item['appointmentId'] as String?;
+              final notificationId = item['id'] as String?;
               final createdAt =
                   DateTime.fromMillisecondsSinceEpoch(createdAtMs);
 
@@ -62,6 +67,21 @@ class NotificationsPage extends ConsumerWidget {
               }
 
               return ListTile(
+                onTap: () async {
+                  if (notificationId != null) {
+                    try {
+                      await firestore.markNotificationRead(
+                          user.uid, notificationId);
+                    } catch (_) {
+                      // ignore; UI will refresh on next stream emission
+                    }
+                  }
+                  await _handleNotificationTap(
+                    context,
+                    type: type,
+                    appointmentId: appointmentId,
+                  );
+                },
                 leading: Icon(
                   read ? Icons.notifications_none : Icons.notifications_active,
                   color: read
@@ -109,6 +129,59 @@ class NotificationsPage extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  Future<void> _handleNotificationTap(
+    BuildContext context, {
+    String? type,
+    String? appointmentId,
+  }) async {
+    // If we have an appointmentId but no recognized type, still open details.
+    if (type == null && appointmentId != null) {
+      await context.pushNamed(
+        AppRoute.appointmentDetail.name,
+        pathParameters: {'id': appointmentId},
+      );
+      return;
+    }
+
+    if (type == null) return;
+
+    switch (type) {
+      case 'appointment_confirmed':
+      case 'appointment_reminder':
+      case 'review_counsellor':
+        // Navigate to appointment detail page
+        if (appointmentId != null) {
+          await context.pushNamed(
+            AppRoute.appointmentDetail.name,
+            pathParameters: {'id': appointmentId},
+          );
+        }
+        break;
+      case 'add_progress_notes':
+        // This is for counsellors, navigate to session notes
+        if (appointmentId != null) {
+          await context.pushNamed(
+            AppRoute.sessionNotes.name,
+            pathParameters: {'id': appointmentId},
+          );
+        }
+        break;
+      case 'mood_tracking_reminder':
+        // Navigate to mood tracking page
+        await context.pushNamed(AppRoute.studentMood.name);
+        break;
+      default:
+        // Fallback: if appointmentId is present, navigate to its detail
+        if (appointmentId != null) {
+          await context.pushNamed(
+            AppRoute.appointmentDetail.name,
+            pathParameters: {'id': appointmentId},
+          );
+        }
+        break;
+    }
   }
 
   String _formatDate(DateTime dt) {

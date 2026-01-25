@@ -1,14 +1,17 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../../models/appointment.dart';
 import '../../models/mood_entry.dart';
 import '../../providers/auth_providers.dart';
 import '../../router/app_router.dart';
 import '../../services/firestore_service.dart';
 import '../common/common_widgets.dart';
+import 'student_demo_modal.dart';
 
 final firestoreProvider = Provider((ref) => FirestoreService());
 
@@ -24,6 +27,131 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
   int _currentPage = 0;
   final int _postsPerPage = 10;
   static final _random = Random();
+  DateTime _calendarFocusedDay = DateTime.now();
+  DateTime? _calendarSelectedDay;
+
+  @override
+  void initState() {
+    super.initState();
+    _calendarSelectedDay = DateTime.now();
+
+    // Check if demo needs to be shown for first-time users
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowDemo();
+    });
+  }
+
+  void _checkAndShowDemo() {
+    // Access the user profile from the widget build context
+    final userAsync = ref.read(userProfileProvider);
+    userAsync.whenData((profile) {
+      if (profile != null &&
+          profile.role.name == 'student' &&
+          !profile.demoViewed) {
+        // Show demo modal for first-time student
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const StudentDemoModal(),
+        );
+      }
+    });
+  }
+
+  void _showBookingChoice(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        final scheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          title: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: scheme.primary.withValues(alpha: 0.15),
+                child: Icon(Icons.schedule, color: scheme.primary),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Book a session',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Choose how you want to proceed:',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side:
+                      BorderSide(color: scheme.primary.withValues(alpha: 0.25)),
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(12),
+                  leading: CircleAvatar(
+                    backgroundColor: scheme.primary.withValues(alpha: 0.12),
+                    child: Icon(Icons.people_alt, color: scheme.primary),
+                  ),
+                  title: const Text('Browse counsellor catalog'),
+                  subtitle: const Text('Pick a counsellor before booking'),
+                  onTap: () {
+                    context.pop();
+                    context.pushNamed(AppRoute.counsellorCatalog.name);
+                  },
+                  trailing: Icon(Icons.arrow_forward_ios,
+                      size: 16, color: scheme.primary),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                      color: scheme.secondary.withValues(alpha: 0.25)),
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(12),
+                  leading: CircleAvatar(
+                    backgroundColor: scheme.secondary.withValues(alpha: 0.12),
+                    child: Icon(Icons.bolt, color: scheme.secondary),
+                  ),
+                  title: const Text('Quick booking'),
+                  subtitle: const Text('Jump straight to available slots'),
+                  onTap: () {
+                    context.pop();
+                    context.pushNamed(AppRoute.booking.name);
+                  },
+                  trailing: Icon(Icons.arrow_forward_ios,
+                      size: 16, color: scheme.secondary),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => context.pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +181,8 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
           firestoreService.sendUpcomingReminderIfDue(user.uid);
           // Also auto-complete any sessions past end time by 30 minutes
           firestoreService.autoCompleteExpiredSessionsForUser(user.uid);
+          // Send mood tracking reminder if user hasn't logged mood in 24+ hours
+          firestoreService.sendMoodTrackingReminderIfDue(user.uid);
         });
 
         return PrimaryScaffold(
@@ -84,6 +214,26 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
             StreamBuilder<List<Map<String, dynamic>>>(
               stream: firestoreService.notifications(user.uid),
               builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  // Show loading indicator
+                  return IconButton(
+                    tooltip: 'Notifications',
+                    icon: const Icon(Icons.notifications_outlined),
+                    onPressed: () =>
+                        context.pushNamed(AppRoute.notifications.name),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  // Show error indicator
+                  return IconButton(
+                    tooltip: 'Notifications (Error)',
+                    icon: const Icon(Icons.notifications_off),
+                    onPressed: () =>
+                        context.pushNamed(AppRoute.notifications.name),
+                  );
+                }
+
                 final items = snapshot.data ?? const [];
                 final unread =
                     items.where((n) => !(n['read'] as bool? ?? false)).length;
@@ -167,7 +317,7 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                       ),
                     );
                     if (confirm == true) {
-                      await ref.read(authServiceProvider).signOut();
+                      unawaited(ref.read(authServiceProvider).signOut());
                       if (context.mounted) {
                         context.goNamed(AppRoute.login.name);
                       }
@@ -255,7 +405,7 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                       label: const Text('Notifications'),
                     ),
                     ElevatedButton.icon(
-                      onPressed: () => context.pushNamed(AppRoute.booking.name),
+                      onPressed: () => _showBookingChoice(context),
                       icon: const Icon(Icons.schedule),
                       label: const Text('Book Session'),
                     ),
@@ -306,8 +456,23 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                   final appointments = snapshot.data ?? [];
                   final upcoming = appointments
                       .where((a) => a.start.isAfter(DateTime.now()))
-                      .take(3)
                       .toList();
+
+                  // Group upcoming by day for calendar markers
+                  final Map<DateTime, List<Appointment>> eventsByDay = {};
+                  for (final apt in upcoming) {
+                    final key = DateTime(
+                        apt.start.year, apt.start.month, apt.start.day);
+                    eventsByDay.putIfAbsent(key, () => []).add(apt);
+                  }
+
+                  final selectedEvents = _calendarSelectedDay == null
+                      ? const <Appointment>[]
+                      : eventsByDay[DateTime(
+                              _calendarSelectedDay!.year,
+                              _calendarSelectedDay!.month,
+                              _calendarSelectedDay!.day)] ??
+                          const <Appointment>[];
 
                   return SectionCard(
                     title: 'Upcoming Sessions',
@@ -316,37 +481,88 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                           context.pushNamed(AppRoute.appointments.name),
                       child: const Text('View All'),
                     ),
-                    child: upcoming.isEmpty
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Column(
+                      children: [
+                        TableCalendar<Appointment>(
+                          firstDay:
+                              DateTime.now().subtract(const Duration(days: 30)),
+                          lastDay:
+                              DateTime.now().add(const Duration(days: 180)),
+                          focusedDay: _calendarFocusedDay,
+                          selectedDayPredicate: (day) =>
+                              isSameDay(_calendarSelectedDay, day),
+                          eventLoader: (day) {
+                            final key = DateTime(day.year, day.month, day.day);
+                            return eventsByDay[key] ?? const <Appointment>[];
+                          },
+                          calendarFormat: CalendarFormat.twoWeeks,
+                          availableCalendarFormats: const {
+                            CalendarFormat.month: 'Month',
+                            CalendarFormat.twoWeeks: '2 weeks',
+                            CalendarFormat.week: 'Week',
+                          },
+                          onDaySelected: (selectedDay, focusedDay) {
+                            setState(() {
+                              _calendarSelectedDay = selectedDay;
+                              _calendarFocusedDay = focusedDay;
+                            });
+                          },
+                          onPageChanged: (focusedDay) {
+                            _calendarFocusedDay = focusedDay;
+                          },
+                          headerStyle: HeaderStyle(
+                            formatButtonVisible: false,
+                            titleCentered: true,
+                          ),
+                          calendarStyle: CalendarStyle(
+                            markerDecoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.secondary,
+                              shape: BoxShape.circle,
+                            ),
+                            todayDecoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            selectedDecoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        if (selectedEvents.isNotEmpty)
+                          ...selectedEvents.take(3).map(
+                                (apt) => _AppointmentTile(appointment: apt),
+                              )
+                        else if (upcoming.isNotEmpty)
+                          ...upcoming.take(3).map(
+                                (apt) => _AppointmentTile(appointment: apt),
+                              )
+                        else
+                          Column(
                             children: [
                               const Text('No upcoming sessions scheduled.'),
                               const SizedBox(height: 8),
                               TextButton.icon(
-                                onPressed: () =>
-                                    context.pushNamed(AppRoute.booking.name),
+                                onPressed: () => _showBookingChoice(context),
                                 icon: const Icon(Icons.add),
                                 label: const Text('Book a Session'),
                               ),
                             ],
-                          )
-                        : Column(
-                            children: [
-                              ...upcoming.map((apt) => _AppointmentTile(
-                                    date: apt.start,
-                                    counsellor: 'Counsellor',
-                                    time:
-                                        DateFormat('h:mm a').format(apt.start),
-                                  )),
-                              const Divider(),
-                              TextButton.icon(
-                                onPressed: () =>
-                                    context.pushNamed(AppRoute.booking.name),
-                                icon: const Icon(Icons.add),
-                                label: const Text('Book Another Session'),
-                              ),
-                            ],
                           ),
+                        if (upcoming.isNotEmpty) ...[
+                          const Divider(),
+                          TextButton.icon(
+                            onPressed: () => _showBookingChoice(context),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Book Another Session'),
+                          ),
+                        ],
+                      ],
+                    ),
                   );
                 },
               ),
@@ -717,22 +933,28 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
 }
 
 class _AppointmentTile extends StatelessWidget {
-  final DateTime date;
-  final String counsellor;
-  final String time;
+  final Appointment appointment;
 
-  const _AppointmentTile({
-    required this.date,
-    required this.counsellor,
-    required this.time,
-  });
+  const _AppointmentTile({required this.appointment});
 
   @override
   Widget build(BuildContext context) {
+    final time = DateFormat('h:mm a').format(appointment.start);
+    final date = DateFormat('MMM d').format(appointment.start);
+    final title = appointment.topic?.isNotEmpty == true
+        ? appointment.topic!
+        : 'Upcoming session';
     return ListTile(
-      leading: const Icon(Icons.event),
-      title: Text(counsellor),
-      subtitle: Text('${DateFormat('MMM d').format(date)} at $time'),
+      leading: const Icon(Icons.event_available),
+      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text('$date at $time'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        context.pushNamed(
+          AppRoute.appointmentDetail.name,
+          pathParameters: {'id': appointment.id},
+        );
+      },
     );
   }
 }

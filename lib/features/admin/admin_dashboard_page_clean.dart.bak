@@ -1,0 +1,2251 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
+import '../../models/appointment.dart';
+import '../../models/user_profile.dart';
+import '../../providers/auth_providers.dart';
+import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
+import '../common/common_widgets.dart';
+import '../student/community_forum_page.dart';
+
+class AdminDashboardPage extends ConsumerStatefulWidget {
+  const AdminDashboardPage({super.key});
+
+  @override
+  ConsumerState<AdminDashboardPage> createState() => _AdminDashboardPageState();
+}
+
+class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
+  int _selectedTab = 0;
+
+  Future<void> _logout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Logout'),
+          ),
+        );
+      }
+    }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = ref.watch(authStateProvider).value;
+    if (user == null) {
+      return const PrimaryScaffold(
+        title: 'Admin Dashboard',
+        body: Center(child: Text('Please sign in')),
+          child: ActionChip(
+            label: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (selected) ...[
+                  const Icon(Icons.check_circle, size: 16),
+                  const SizedBox(width: 6),
+                ],
+                Text(label),
+              ],
+            ),
+            onPressed: onTap,
+            backgroundColor:
+                selected ? Theme.of(context).colorScheme.primaryContainer : null,
+          ),
+        );
+      }
+    }
+                  onTap: () => setState(() => _selectedTab = 3),
+                ),
+                _TabButton(
+                  label: 'Leave Management',
+                  index: 4,
+                  selected: _selectedTab == 4,
+                  onTap: () => setState(() => _selectedTab = 4),
+                ),
+                _TabButton(
+                  label: 'Community',
+                  index: 5,
+                  selected: _selectedTab == 5,
+                  onTap: () => setState(() => _selectedTab = 5),
+                ),
+                _TabButton(
+                  label: 'Profile',
+                  index: 6,
+                  selected: _selectedTab == 6,
+                  onTap: () => setState(() => _selectedTab = 6),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: IndexedStack(
+              index: _selectedTab,
+              children: [
+                const _OverviewTab(),
+                const _ManageStudentsTab(),
+                const _ManageCounsellorsTab(),
+                const _ManageAppointmentsTab(),
+                const _LeaveManagementTab(),
+                const CommunityForumPage(embedded: true),
+                const _AdminProfileTab(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TabButton extends StatelessWidget {
+  final String label;
+  final int index;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TabButton({
+    required this.label,
+    required this.index,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(4.0),
+      // ===== LEAVE MANAGEMENT TAB =====
+      class _LeaveManagementTab extends ConsumerStatefulWidget {
+        const _LeaveManagementTab();
+          mainAxisSize: MainAxisSize.min,
+        @override
+        ConsumerState<_LeaveManagementTab> createState() => _LeaveManagementTabState();
+      }
+
+      class _LeaveManagementTabState extends ConsumerState<_LeaveManagementTab> {
+        final TextEditingController _searchController = TextEditingController();
+
+        @override
+        void dispose() {
+          _searchController.dispose();
+          super.dispose();
+        }
+
+        @override
+        Widget build(BuildContext context) {
+          final firestore = ref.watch(firestoreServiceProvider);
+
+          return StreamBuilder<List<UserProfile>>(
+            stream: firestore.counsellors(),
+            builder: (context, counsellorSnap) {
+              if (counsellorSnap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final counsellorMap = {
+                for (final c in counsellorSnap.data ?? []) c.uid: c.displayName,
+              };
+
+              return Column(
+                children: [
+                return Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: ActionChip(
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (selected) ...[
+                          const Icon(Icons.check_circle, size: 16),
+                          const SizedBox(width: 6),
+                        ],
+                        Text(label),
+                      ],
+                    ),
+                    onPressed: onTap,
+                    backgroundColor:
+                        selected ? Theme.of(context).colorScheme.primaryContainer : null,
+                  ),
+                );
+                const SizedBox(height: 4),
+                Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// ===== STUDENTS TAB =====
+class _ManageStudentsTab extends ConsumerStatefulWidget {
+  const _ManageStudentsTab();
+
+  @override
+  ConsumerState<_ManageStudentsTab> createState() => _ManageStudentsTabState();
+}
+
+class _ManageStudentsTabState extends ConsumerState<_ManageStudentsTab> {
+  final TextEditingController _searchController = TextEditingController();
+  String _activeFilter = 'all';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _showStudentDetails(BuildContext context, WidgetRef ref, UserProfile student) async {
+    final firestore = ref.read(firestoreServiceProvider);
+    final appointments = await firestore.appointmentsForStudent(student.uid).first;
+    final reviewedAppointments = appointments
+        .where((a) => a.studentRating != null || (a.studentComment != null && a.studentComment!.isNotEmpty))
+        .toList();
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${student.displayName} - Details'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Email: ${student.email}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('Student ID: ${student.studentId ?? "N/A"}'),
+                Text('Phone: ${student.phoneNumber ?? "N/A"}'),
+                Text('Date of Birth: ${student.dateOfBirth ?? "N/A"}'),
+                Text('Gender: ${student.gender ?? "N/A"}'),
+                if (student.counsellorId != null) Text('Counsellor ID: ${student.counsellorId}'),
+                const Divider(height: 24),
+                const Text('Medical Information:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 8),
+                Text('Blood Type: ${student.bloodType ?? "N/A"}'),
+                Text('Allergies: ${student.allergies ?? "None"}'),
+                if (student.medicalConditions != null && student.medicalConditions!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text('Medical Conditions: ${student.medicalConditions}'),
+                ],
+                Text('Emergency Contact: ${student.emergencyContact ?? "N/A"}'),
+                Text('Emergency Phone: ${student.emergencyContactPhone ?? "N/A"}'),
+                const Divider(height: 24),
+                Text('Session Reviews (${reviewedAppointments.length}):',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 8),
+                if (reviewedAppointments.isEmpty)
+                  const Text('No reviews yet', style: TextStyle(color: Colors.grey))
+                else
+                  ...reviewedAppointments.map((appt) => Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(DateFormat('MMM d, y').format(appt.start),
+                                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  const Spacer(),
+                                  if (appt.studentRating != null)
+                                    Row(
+                                      children: [
+                                        ...List.generate(appt.studentRating!, (i) => const Icon(Icons.star, size: 16, color: Colors.amber)),
+                                        ...List.generate(5 - appt.studentRating!, (i) => const Icon(Icons.star_border, size: 16, color: Colors.grey)),
+                                      ],
+                                    ),
+                                ],
+                              ),
+                              if (appt.topic != null)
+                                Text('Topic: ${appt.topic}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                              if (appt.studentComment != null && appt.studentComment!.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(appt.studentComment!, style: const TextStyle(fontStyle: FontStyle.italic)),
+                              ],
+                              const SizedBox(height: 8),
+                              Row(
+                                children: const [
+                                  Icon(Icons.check_circle, color: Colors.green, size: 16),
+                                  SizedBox(width: 8),
+                                  Text('Published',
+                                      style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      )),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final firestore = ref.watch(firestoreServiceProvider);
+    final authService = ref.watch(authServiceProvider);
+
+    return StreamBuilder<List<UserProfile>>(
+      stream: firestore.allStudents(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        var students = snapshot.data!;
+        final q = _searchController.text.trim().toLowerCase();
+        if (_activeFilter != 'all') {
+          final wantActive = _activeFilter == 'active';
+          students = students.where((s) => s.isActive == wantActive).toList();
+        }
+        if (q.isNotEmpty) {
+          students = students.where((s) {
+            final name = s.displayName.toLowerCase();
+            final email = s.email.toLowerCase();
+            final phone = (s.phoneNumber ?? '').toLowerCase();
+            final sid = (s.studentId ?? '').toLowerCase();
+            return name.contains(q) || email.contains(q) || phone.contains(q) || sid.contains(q);
+          }).toList();
+        }
+
+        return Column(
+          children: [
+            Card(
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Search by name, email, phone, student ID',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        FilterChip(
+                          label: const Text('All'),
+                          selected: _activeFilter == 'all',
+                          onSelected: (_) => setState(() => _activeFilter = 'all'),
+                        ),
+                        FilterChip(
+                          label: const Text('Active'),
+                          selected: _activeFilter == 'active',
+                          onSelected: (_) => setState(() => _activeFilter = 'active'),
+                        ),
+                        FilterChip(
+                          label: const Text('Inactive'),
+                          selected: _activeFilter == 'inactive',
+                          onSelected: (_) => setState(() => _activeFilter = 'inactive'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (students.isEmpty)
+              const Expanded(child: Center(child: Padding(padding: EdgeInsets.all(32), child: Text('No students found'))))
+            else
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: students.length,
+                  itemBuilder: (context, i) {
+                    final student = students[i];
+                    final isActive = student.isActive;
+                    return _buildStudentTile(context, authService, student, isActive);
+                  },
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStudentTile(BuildContext context, AuthService authService, UserProfile student, bool isActive) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: ExpansionTile(
+        leading: Icon(Icons.person, color: isActive ? Colors.blue : Colors.grey),
+        title: Text(student.displayName),
+        subtitle: Text(student.email),
+        trailing: IconButton(
+          icon: const Icon(Icons.info_outline),
+          tooltip: 'View Full Details',
+          onPressed: () => _showStudentDetails(context, ref, student),
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _DetailRow(label: 'Student ID', value: student.studentId ?? 'N/A'),
+                if (student.phoneNumber != null) _DetailRow(label: 'Phone', value: student.phoneNumber!),
+                if (student.dateOfBirth != null) _DetailRow(label: 'Date of Birth', value: student.dateOfBirth!),
+                if (student.gender != null) _DetailRow(label: 'Gender', value: student.gender!),
+                _DetailRow(label: 'Status', value: isActive ? 'Active' : 'Inactive'),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      icon: Icon(isActive ? Icons.block : Icons.check_circle),
+                      label: Text(isActive ? 'Disable' : 'Enable'),
+                      onPressed: () async {
+                        await authService.toggleUserStatus(student.uid, !isActive);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(isActive ? 'Student disabled - automatically logged out' : 'Student enabled - can login now')),
+                          );
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      label: const Text('Delete', style: TextStyle(color: Colors.red)),
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Delete Student'),
+                            content: Text('Permanently delete ${student.displayName}?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                              ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          await authService.deleteUserAccount(student.uid);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Student deleted')));
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ===== COUNSELLORS TAB =====
+class _ManageCounsellorsTab extends ConsumerStatefulWidget {
+  const _ManageCounsellorsTab();
+
+  @override
+  ConsumerState<_ManageCounsellorsTab> createState() => _ManageCounsellorsTabState();
+}
+
+class _ManageCounsellorsTabState extends ConsumerState<_ManageCounsellorsTab> {
+  final TextEditingController _searchController = TextEditingController();
+  String _activeFilter = 'all';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _showRegisterCounsellorDialog(BuildContext context, WidgetRef ref) async {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final phoneController = TextEditingController();
+    final designationController = TextEditingController();
+    final expertiseController = TextEditingController();
+    final passwordController = TextEditingController();
+    final authService = ref.read(authServiceProvider);
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Register New Counsellor',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 24),
+                _buildRequiredField('Full Name', nameController, Icons.person),
+                _buildRequiredField('Email', emailController, Icons.email),
+                _buildRequiredField('Phone Number', phoneController, Icons.phone),
+                _buildRequiredField('Designation', designationController, Icons.work),
+                _buildRequiredField('Expertise/Specialization', expertiseController, Icons.school),
+                _buildRequiredField('Temporary Password', passwordController, Icons.lock, isPassword: true),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final name = nameController.text.trim();
+                        final email = emailController.text.trim();
+                        final phone = phoneController.text.trim();
+                        final designation = designationController.text.trim();
+                        final expertise = expertiseController.text.trim();
+                        final password = passwordController.text;
+
+                        if (name.isEmpty || email.isEmpty || phone.isEmpty || designation.isEmpty || expertise.isEmpty || password.isEmpty) {
+                          if (dialogContext.mounted) {
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              const SnackBar(content: Text('All fields are required')),
+                            );
+                          }
+                          return;
+                        }
+
+                        try {
+                          await authService.createCounsellorWithPassword(
+                            email: email,
+                            password: password,
+                            displayName: name,
+                            counsellorId: email.split('@')[0],
+                            designation: designation,
+                            expertise: expertise,
+                          );
+                          if (context.mounted) {
+                            Navigator.pop(dialogContext);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Counsellor registered successfully')),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: $e')),
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('Register'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    nameController.dispose();
+    emailController.dispose();
+    phoneController.dispose();
+    designationController.dispose();
+    expertiseController.dispose();
+    passwordController.dispose();
+  }
+
+  Widget _buildRequiredField(String label, TextEditingController controller, IconData icon, {bool isPassword = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextField(
+        controller: controller,
+        obscureText: isPassword,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.black87),
+          hintText: 'Enter $label',
+          prefixIcon: Icon(icon),
+          suffixIcon: const Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: Text('*', style: TextStyle(color: Colors.red, fontSize: 18, fontWeight: FontWeight.bold)),
+          ),
+          suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final firestore = ref.watch(firestoreServiceProvider);
+    final authService = ref.watch(authServiceProvider);
+
+    return StreamBuilder<List<UserProfile>>(
+      stream: firestore.counsellors(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        var counsellors = snapshot.data!;
+        final q = _searchController.text.trim().toLowerCase();
+        if (_activeFilter != 'all') {
+          final wantActive = _activeFilter == 'active';
+          counsellors = counsellors.where((c) => c.isActive == wantActive).toList();
+        }
+        if (q.isNotEmpty) {
+          counsellors = counsellors.where((c) {
+            final name = c.displayName.toLowerCase();
+            final email = c.email.toLowerCase();
+            final phone = (c.phoneNumber ?? '').toLowerCase();
+            return name.contains(q) || email.contains(q) || phone.contains(q);
+          }).toList();
+        }
+
+        return Column(
+          children: [
+            Card(
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (_) => setState(() {}),
+                            decoration: const InputDecoration(
+                              labelText: 'Search counsellors',
+                              prefixIcon: Icon(Icons.search),
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => _showRegisterCounsellorDialog(context, ref),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Register'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        FilterChip(
+                          label: const Text('All'),
+                          selected: _activeFilter == 'all',
+                          onSelected: (_) => setState(() => _activeFilter = 'all'),
+                        ),
+                        FilterChip(
+                          label: const Text('Active'),
+                          selected: _activeFilter == 'active',
+                          onSelected: (_) => setState(() => _activeFilter = 'active'),
+                        ),
+                        FilterChip(
+                          label: const Text('Inactive'),
+                          selected: _activeFilter == 'inactive',
+                          onSelected: (_) => setState(() => _activeFilter = 'inactive'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(8),
+                itemCount: counsellors.length,
+                itemBuilder: (context, i) {
+                  final c = counsellors[i];
+                  return _buildCounsellorExpansionTile(context, authService, firestore, c);
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCounsellorExpansionTile(BuildContext context, AuthService authService, FirestoreService firestore, UserProfile c) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: ExpansionTile(
+        leading: Icon(Icons.psychology, color: c.isActive ? Colors.purple : Colors.grey),
+        title: Text(c.displayName),
+        subtitle: Text(c.email),
+        trailing: IconButton(
+          icon: const Icon(Icons.info_outline),
+          tooltip: 'View Full Details',
+          onPressed: () => _showCounsellorDetailsDialog(context, firestore, c),
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (c.designation != null) _DetailRow(label: 'Designation', value: c.designation!),
+                if (c.expertise != null) _DetailRow(label: 'Expertise', value: c.expertise!),
+                if (c.phoneNumber != null) _DetailRow(label: 'Phone', value: c.phoneNumber!),
+                _DetailRow(label: 'Status', value: c.isActive ? 'Active' : 'Inactive'),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      icon: Icon(c.isActive ? Icons.block : Icons.check_circle),
+                      label: Text(c.isActive ? 'Disable' : 'Enable'),
+                      onPressed: () async {
+                        await authService.toggleUserStatus(c.uid, !c.isActive);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(c.isActive ? 'Counsellor disabled' : 'Counsellor enabled')),
+                          );
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      label: const Text('Delete', style: TextStyle(color: Colors.red)),
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Delete Counsellor'),
+                            content: Text('Permanently delete ${c.displayName}?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                              ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          await authService.deleteUserAccount(c.uid);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Counsellor deleted')));
+                          }
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today),
+                      label: const Text('Add Leave'),
+                      onPressed: () => _showAddLeaveForCounsellorDialog(context, ref, c),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAddLeaveForCounsellorDialog(
+    BuildContext context,
+    WidgetRef ref,
+    UserProfile counsellor,
+  ) async {
+    DateTime? startDate;
+    DateTime? endDate;
+    String leaveType = 'medical';
+    List<Appointment> conflicts = [];
+    bool loadingConflicts = false;
+    final reasonController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setState) => Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Add Leave — ${counsellor.displayName}',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: leaveType,
+                    decoration: const InputDecoration(labelText: 'Leave Type'),
+                    items: const [
+                      DropdownMenuItem(value: 'medical', child: Text('Medical')),
+                      DropdownMenuItem(value: 'personal', child: Text('Personal')),
+                      DropdownMenuItem(value: 'vacation', child: Text('Vacation')),
+                      DropdownMenuItem(value: 'other', child: Text('Other')),
+                    ],
+                    onChanged: (v) => setState(() => leaveType = v ?? 'medical'),
+                  ),
+                  const SizedBox(height: 12),
+                  ListTile(
+                    title: const Text('Leave Range'),
+                    subtitle: Text(
+                      startDate != null && endDate != null
+                          ? '${DateFormat('MMM d, y').format(startDate!)} → ${DateFormat('MMM d, y').format(endDate!)}'
+                          : 'Select dates',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (startDate != null || endDate != null)
+                          IconButton(
+                            tooltip: 'Clear',
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() {
+                                startDate = null;
+                                endDate = null;
+                                conflicts = [];
+                              });
+                            },
+                          ),
+                        const Icon(Icons.calendar_today),
+                      ],
+                    ),
+                    onTap: () async {
+                      final now = DateTime.now();
+                      final picked = await showDialog<DateTimeRange>(
+                        context: dialogContext,
+                        builder: (context) => DateRangePickerDialog(
+                          firstDate: DateTime(now.year, now.month, now.day),
+                          lastDate: now.add(const Duration(days: 365)),
+                          initialDateRange: startDate != null && endDate != null
+                              ? DateTimeRange(start: startDate!, end: endDate!)
+                              : null,
+                        ),
+                      );
+
+                      if (picked != null) {
+                        setState(() {
+                          startDate = picked.start;
+                          endDate = picked.end;
+                          loadingConflicts = true;
+                        });
+
+                        final startOfDay = DateTime(
+                          picked.start.year,
+                          picked.start.month,
+                          picked.start.day,
+                        );
+                        final endOfDay = DateTime(
+                          picked.end.year,
+                          picked.end.month,
+                          picked.end.day,
+                          23,
+                          59,
+                          59,
+                        );
+
+                        final overlaps = await ref
+                            .read(firestoreServiceProvider)
+                            .counsellorAppointmentsOverlapping(
+                              counsellorId: counsellor.uid,
+                              start: startOfDay,
+                              end: endOfDay,
+                            );
+
+                        if (ctx.mounted) {
+                          setState(() {
+                            conflicts = overlaps;
+                            loadingConflicts = false;
+                          });
+                        }
+                      }
+                    },
+                  ),
+                  if (loadingConflicts)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8.0),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 8),
+                          Text('Checking bookings...'),
+                        ],
+                      ),
+                    ),
+                  if (!loadingConflicts && conflicts.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(top: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Bookings in this range',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 8),
+                          ...conflicts.map(
+                            (a) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.event_busy, size: 18),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '${DateFormat('MMM d, y').format(a.start)} • ${DateFormat('h:mm a').format(a.start)} - ${DateFormat('h:mm a').format(a.end)}',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Please reschedule these before adding the leave.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          )
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: reasonController,
+                    decoration: const InputDecoration(labelText: 'Reason (optional)'),
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.check_circle),
+                        label: const Text('Add Leave'),
+                        onPressed: startDate != null && endDate != null && !loadingConflicts && conflicts.isEmpty
+                            ? () async {
+                                final firestore = ref.read(firestoreServiceProvider);
+                                await firestore.addLeave(
+                                  userId: counsellor.uid,
+                                  startDate: startDate!,
+                                  endDate: endDate!,
+                                  reason: reasonController.text.trim(),
+                                  leaveType: leaveType,
+                                );
+                                if (context.mounted) {
+                                  Navigator.pop(dialogContext);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Leave added and bookings will be blocked during the period.')),
+                                  );
+                                }
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCounsellorDetailsDialog(BuildContext context, FirestoreService firestore, UserProfile c) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${c.displayName} - Details'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: CircleAvatar(
+                    radius: 32,
+                    child: Text(c.displayName[0].toUpperCase(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _DetailRow(label: 'Name', value: c.displayName),
+                _DetailRow(label: 'Email', value: c.email),
+                if (c.phoneNumber != null) _DetailRow(label: 'Phone', value: c.phoneNumber!),
+                if (c.designation != null) _DetailRow(label: 'Designation', value: c.designation!),
+                if (c.expertise != null) _DetailRow(label: 'Expertise', value: c.expertise!),
+                _DetailRow(label: 'Status', value: c.isActive ? 'Active' : 'Inactive'),
+                const SizedBox(height: 12),
+                Consumer(
+                  builder: (ctx, ref, _) {
+                    return StreamBuilder<List>(
+                      stream: firestore.userLeaves(c.uid),
+                      builder: (context, leaveSnap) {
+                        final leaves = leaveSnap.data ?? [];
+                        if (leaves.isEmpty) {
+                          return const _DetailRow(label: 'Leave Status', value: 'No leaves scheduled');
+                        }
+
+                        final nowMs = DateTime.now().millisecondsSinceEpoch;
+                        Map<String, dynamic>? activeLeave;
+                        for (final l in leaves) {
+                          final s = (l is Map) ? (l['startDate'] as int?) ?? 0 : 0;
+                          final e = (l is Map) ? (l['endDate'] as int?) ?? 0 : 0;
+                          if (s <= nowMs && e >= nowMs) {
+                            activeLeave = (l is Map) ? Map<String, dynamic>.from(l) : null;
+                            break;
+                          }
+                        }
+
+                        if (activeLeave != null && activeLeave.isNotEmpty) {
+                          final s = DateTime.fromMillisecondsSinceEpoch(activeLeave['startDate'] as int);
+                          final e = DateTime.fromMillisecondsSinceEpoch(activeLeave['endDate'] as int);
+                          final type = (activeLeave['leaveType'] as String?) ?? 'leave';
+                          final msg = 'On leave (${type}): ${DateFormat('MMM d').format(s)} - ${DateFormat('MMM d, y').format(e)}';
+                          return _DetailRow(label: 'Leave Status', value: msg);
+                        }
+
+                        return const _DetailRow(label: 'Leave Status', value: 'No active leaves');
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+}
+
+// ===== APPOINTMENTS TAB =====
+class _ManageAppointmentsTab extends ConsumerStatefulWidget {
+  const _ManageAppointmentsTab();
+
+  @override
+  ConsumerState<_ManageAppointmentsTab> createState() => _ManageAppointmentsTabState();
+}
+
+class _ManageAppointmentsTabState extends ConsumerState<_ManageAppointmentsTab> {
+  final TextEditingController _searchController = TextEditingController();
+  String _timeFilter = 'all'; // all, 1week, 2weeks, month
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final firestore = ref.watch(firestoreServiceProvider);
+
+    return StreamBuilder<List<UserProfile>>(
+      stream: firestore.allStudents(),
+      builder: (context, studentSnap) {
+        if (studentSnap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final studentMap = {
+          for (final s in studentSnap.data ?? []) s.uid: s.displayName,
+        };
+
+        return StreamBuilder<List<UserProfile>>(
+          stream: firestore.counsellors(),
+          builder: (context, counsellorSnap) {
+            if (counsellorSnap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final counsellorMap = {
+              for (final c in counsellorSnap.data ?? []) c.uid: c.displayName,
+            };
+
+            return StreamBuilder<List<Appointment>>(
+              stream: firestore.allAppointments(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                var appointments = snapshot.data!;
+                final q = _searchController.text.trim().toLowerCase();
+                final now = DateTime.now();
+
+                // Apply time filter
+                if (_timeFilter != 'all') {
+                  final duration = _timeFilter == '1week'
+                      ? Duration(days: 7)
+                      : _timeFilter == '2weeks'
+                          ? Duration(days: 14)
+                          : Duration(days: 30);
+                  final cutoff = now.add(duration);
+                  appointments = appointments.where((a) => a.start.isBefore(cutoff) && a.start.isAfter(now)).toList();
+                }
+
+                // Apply search filter (by id or name)
+                if (q.isNotEmpty) {
+                  appointments = appointments.where((a) {
+                    final studentName = (studentMap[a.studentId] ?? '').toLowerCase();
+                    final counsellorName = (counsellorMap[a.counsellorId] ?? '').toLowerCase();
+                    return a.studentId.toLowerCase().contains(q) ||
+                        a.counsellorId.toLowerCase().contains(q) ||
+                        studentName.contains(q) ||
+                        counsellorName.contains(q);
+                  }).toList();
+                }
+
+                if (appointments.isEmpty) {
+                  return const Center(child: Text('No appointments found'));
+                }
+
+                return Column(
+                  children: [
+                    Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              controller: _searchController,
+                              onChanged: (_) => setState(() {}),
+                              decoration: const InputDecoration(
+                                labelText: 'Search by student or counsellor',
+                                prefixIcon: Icon(Icons.search),
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              children: [
+                                FilterChip(
+                                  label: const Text('All'),
+                                  selected: _timeFilter == 'all',
+                                  onSelected: (_) => setState(() => _timeFilter = 'all'),
+                                ),
+                                FilterChip(
+                                  label: const Text('1 Week'),
+                                  selected: _timeFilter == '1week',
+                                  onSelected: (_) => setState(() => _timeFilter = '1week'),
+                                ),
+                                FilterChip(
+                                  label: const Text('2 Weeks'),
+                                  selected: _timeFilter == '2weeks',
+                                  onSelected: (_) => setState(() => _timeFilter = '2weeks'),
+                                ),
+                                FilterChip(
+                                  label: const Text('1 Month'),
+                                  selected: _timeFilter == 'month',
+                                  onSelected: (_) => setState(() => _timeFilter = 'month'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(8),
+                        itemCount: appointments.length,
+                        separatorBuilder: (_, __) => const Divider(height: 0),
+                        itemBuilder: (context, i) {
+                          final apt = appointments[i];
+                          final studentName = studentMap[apt.studentId] ?? apt.studentId;
+                          final counsellorName = counsellorMap[apt.counsellorId] ?? apt.counsellorId;
+                          return ListTile(
+                            leading: const Icon(Icons.event),
+                            title: Text('${DateFormat('MMM dd, yyyy').format(apt.start)} • ${DateFormat('h:mm a').format(apt.start)}'),
+                            subtitle: Text('Status: ${apt.status.name}\nStudent: $studentName\nCounsellor: $counsellorName'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => _showAppointmentDetails(context, apt, studentName, counsellorName),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showAppointmentDetails(
+    BuildContext context,
+    Appointment appointment,
+    String studentName,
+    String counsellorName,
+  ) async {
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.event, size: 28, color: Colors.blue),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Appointment Details',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(dialogContext),
+                    ),
+                  ],
+                ),
+                const Divider(height: 32),
+                _DetailRow(label: 'Date', value: DateFormat('EEEE, MMMM d, yyyy').format(appointment.start)),
+                _DetailRow(label: 'Time', value: '${DateFormat('h:mm a').format(appointment.start)} - ${DateFormat('h:mm a').format(appointment.end)}'),
+                _DetailRow(label: 'Status', value: appointment.status.name.toUpperCase()),
+                _DetailRow(label: 'Student', value: studentName),
+                _DetailRow(label: 'Counsellor', value: counsellorName),
+                if (appointment.topic != null) _DetailRow(label: 'Topic', value: appointment.topic!),
+                if (appointment.location != null) _DetailRow(label: 'Location', value: appointment.location!),
+                if (appointment.meetLink != null) _DetailRow(label: 'Meeting Link', value: appointment.meetLink!),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      label: const Text('Delete', style: TextStyle(color: Colors.red)),
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: dialogContext,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Delete Appointment'),
+                            content: const Text('This will permanently delete the appointment.'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Delete'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          final firestore = ref.read(firestoreServiceProvider);
+                          await firestore.deleteAppointment(appointment.id);
+                          if (context.mounted) {
+                            Navigator.pop(dialogContext);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Appointment deleted')),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.edit_calendar),
+                      label: const Text('Reschedule'),
+                      onPressed: () => _showRescheduleDialog(dialogContext, appointment),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showRescheduleDialog(BuildContext parentContext, Appointment appointment) async {
+    DateTime selectedDate = appointment.start;
+    TimeOfDay selectedStartTime = TimeOfDay.fromDateTime(appointment.start);
+    TimeOfDay selectedEndTime = TimeOfDay.fromDateTime(appointment.end);
+
+    await showDialog(
+      context: parentContext,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Reschedule Appointment',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text('Current:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('${DateFormat('MMM d, y').format(appointment.start)} • ${DateFormat('h:mm a').format(appointment.start)} - ${DateFormat('h:mm a').format(appointment.end)}'),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  const Text('New Date:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.calendar_today),
+                    label: Text(DateFormat('EEEE, MMMM d, yyyy').format(selectedDate)),
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: dialogContext,
+                        initialDate: selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (picked != null) {
+                        setState(() => selectedDate = picked);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Start Time:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.access_time),
+                    label: Text(selectedStartTime.format(context)),
+                    onPressed: () async {
+                      final picked = await showTimePicker(
+                        context: dialogContext,
+                        initialTime: selectedStartTime,
+                      );
+                      if (picked != null) {
+                        setState(() => selectedStartTime = picked);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('End Time:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.access_time),
+                    label: Text(selectedEndTime.format(context)),
+                    onPressed: () async {
+                      final picked = await showTimePicker(
+                        context: dialogContext,
+                        initialTime: selectedEndTime,
+                      );
+                      if (picked != null) {
+                        setState(() => selectedEndTime = picked);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final newStart = DateTime(
+                            selectedDate.year,
+                            selectedDate.month,
+                            selectedDate.day,
+                            selectedStartTime.hour,
+                            selectedStartTime.minute,
+                          );
+                          final newEnd = DateTime(
+                            selectedDate.year,
+                            selectedDate.month,
+                            selectedDate.day,
+                            selectedEndTime.hour,
+                            selectedEndTime.minute,
+                          );
+
+                          if (newEnd.isBefore(newStart) || newEnd.isAtSameMomentAs(newStart)) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('End time must be after start time')),
+                            );
+                            return;
+                          }
+
+                          final firestore = ref.read(firestoreServiceProvider);
+                          await firestore.rescheduleAppointment(appointment.id, newStart, newEnd);
+                          
+                          // Send notification to student
+                          await firestore.sendNotification(
+                            userId: appointment.studentId,
+                            title: 'Appointment Rescheduled',
+                            message: 'Your appointment has been rescheduled to ${DateFormat('MMM d, y • h:mm a').format(newStart)}',
+                            type: 'appointment_rescheduled',
+                            appointmentId: appointment.id,
+                          );
+
+                          if (context.mounted) {
+                            Navigator.pop(dialogContext);
+                            Navigator.pop(parentContext);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Appointment rescheduled and student notified')),
+                            );
+                          }
+                        },
+                        child: const Text('Confirm Reschedule'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ===== LEAVE REQUESTS TAB =====
+class _LeaveRequestsTab extends ConsumerWidget {
+  const _LeaveRequestsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+      final firestore = ref.watch(firestoreServiceProvider);
+
+      return StreamBuilder<List<Map<String, dynamic>>>(
+        stream: firestore.pendingLeaveRequests(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final requests = snapshot.data ?? [];
+          return Column(
+            children: [
+              // Top action bar: Add Leave
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
+                  children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.calendar_today),
+                      label: const Text('Add Leave for Counsellor'),
+                      onPressed: () => _showAddLeaveGlobalDialog(context, ref),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: requests.isEmpty
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.event_available, size: 64, color: Colors.grey),
+                            SizedBox(height: 16),
+                            Text('No pending leave requests', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: requests.length,
+                        itemBuilder: (context, i) {
+                          final request = requests[i];
+                          final requestId = request['id'] as String;
+                          final userId = request['userId'] as String;
+                          final counsellorName = request['counsellorName'] as String? ?? 'Unknown';
+                          final startDate = DateTime.fromMillisecondsSinceEpoch(request['startDate'] as int);
+                          final endDate = DateTime.fromMillisecondsSinceEpoch(request['endDate'] as int);
+                          final reason = request['reason'] as String? ?? 'No reason provided';
+                          final leaveType = request['leaveType'] as String? ?? 'personal';
+                          final createdAt = request['createdAt'] != null
+                              ? DateTime.fromMillisecondsSinceEpoch(request['createdAt'] as int)
+                              : DateTime.now();
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.person, color: Colors.purple),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              counsellorName,
+                                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                            ),
+                                            Text(
+                                              'Requested: ${DateFormat('MMM d, y').format(createdAt)}',
+                                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Chip(
+                                        label: Text(leaveType.toUpperCase()),
+                                        backgroundColor: _getLeaveTypeColor(leaveType),
+                                      ),
+                                    ],
+                                  ),
+                                  const Divider(height: 24),
+                                  _DetailRow(
+                                    label: 'Leave Period',
+                                    value: '${DateFormat('MMM d, y').format(startDate)} - ${DateFormat('MMM d, y').format(endDate)}',
+                                  ),
+                                  _DetailRow(
+                                    label: 'Duration',
+                                    value: '${endDate.difference(startDate).inDays + 1} days',
+                                  ),
+                                  _DetailRow(label: 'Reason', value: reason),
+                                  const SizedBox(height: 16),
+                                  StreamBuilder<List<Appointment>>(
+                                    stream: firestore.appointmentsForCounsellor(userId),
+                                    builder: (context, apptSnap) {
+                                      if (!apptSnap.hasData) return const SizedBox.shrink();
+                                      final conflicts = apptSnap.data!.where((appt) {
+                                        return appt.start.isBefore(endDate) &&
+                                            appt.end.isAfter(startDate) &&
+                                            (appt.status == AppointmentStatus.pending || appt.status == AppointmentStatus.confirmed);
+                                      }).toList();
+
+                                      if (conflicts.isNotEmpty) {
+                                        return Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange.shade50,
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: Colors.orange.shade300),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Icon(Icons.warning, color: Colors.orange.shade700, size: 20),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    '${conflicts.length} Booking Conflict(s)',
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.orange.shade700,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              const Text(
+                                                'These appointments need to be rescheduled:',
+                                                style: TextStyle(fontSize: 12),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              ...conflicts.take(3).map((appt) => Padding(
+                                                    padding: const EdgeInsets.only(bottom: 4),
+                                                    child: Text(
+                                                      '\u2022 ${DateFormat('MMM d, h:mm a').format(appt.start)} - Student: ${appt.studentId}',
+                                                      style: const TextStyle(fontSize: 12),
+                                                    ),
+                                                  )),
+                                              if (conflicts.length > 3)
+                                                Text(
+                                                  '  ... and ${conflicts.length - 3} more',
+                                                  style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                                                ),
+                                            ],
+                                          ),
+                                        );
+                                      }
+                                      return const SizedBox.shrink();
+                                    },
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      TextButton.icon(
+                                        icon: const Icon(Icons.close, color: Colors.red),
+                                        label: const Text('Decline', style: TextStyle(color: Colors.red)),
+                                        onPressed: () => _handleLeaveRequest(
+                                          context,
+                                          ref,
+                                          requestId,
+                                          userId,
+                                          false,
+                                          counsellorName,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      ElevatedButton.icon(
+                                        icon: const Icon(Icons.check),
+                                        label: const Text('Approve'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.green,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        onPressed: () => _handleLeaveRequest(
+                                          context,
+                                          ref,
+                                          requestId,
+                                          userId,
+                                          true,
+                                          counsellorName,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    Future<void> _showAddLeaveGlobalDialog(BuildContext context, WidgetRef ref) async {
+      final firestore = ref.read(firestoreServiceProvider);
+      UserProfile? selectedCounsellor;
+      DateTime? startDate;
+      DateTime? endDate;
+      String leaveType = 'medical';
+      List<Appointment> conflicts = [];
+      bool loadingConflicts = false;
+      final reasonController = TextEditingController();
+
+      await showDialog(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (ctx, setState) => Dialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Add Counsellor Leave', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 16),
+                    Consumer(
+                      builder: (ctx, ref2, _) => StreamBuilder<List<UserProfile>>(
+                        stream: firestore.counsellors(),
+                        builder: (context, snap) {
+                          final counsellors = snap.data ?? [];
+                          return DropdownButtonFormField<UserProfile>(
+                            value: selectedCounsellor,
+                            items: counsellors
+                                .map((c) => DropdownMenuItem<UserProfile>(
+                                      value: c,
+                                      child: Text(c.displayName),
+                                    ))
+                                .toList(),
+                            onChanged: (c) {
+                              setState(() {
+                                selectedCounsellor = c;
+                                conflicts = [];
+                              });
+                            },
+                            decoration: const InputDecoration(labelText: 'Counsellor'),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: leaveType,
+                      decoration: const InputDecoration(labelText: 'Leave Type'),
+                      items: const [
+                        DropdownMenuItem(value: 'medical', child: Text('Medical')),
+                        DropdownMenuItem(value: 'personal', child: Text('Personal')),
+                        DropdownMenuItem(value: 'vacation', child: Text('Vacation')),
+                        DropdownMenuItem(value: 'other', child: Text('Other')),
+                      ],
+                      onChanged: (v) => setState(() => leaveType = v ?? 'medical'),
+                    ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      title: const Text('Leave Range'),
+                      subtitle: Text(
+                        startDate != null && endDate != null
+                            ? '${DateFormat('MMM d, y').format(startDate!)} → ${DateFormat('MMM d, y').format(endDate!)}'
+                            : 'Select dates',
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (startDate != null || endDate != null)
+                            IconButton(
+                              tooltip: 'Clear',
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                setState(() {
+                                  startDate = null;
+                                  endDate = null;
+                                  conflicts = [];
+                                });
+                              },
+                            ),
+                          const Icon(Icons.calendar_today),
+                        ],
+                      ),
+                      onTap: () async {
+                        final now = DateTime.now();
+                        final picked = await showDialog<DateTimeRange>(
+                          context: dialogContext,
+                          builder: (context) => DateRangePickerDialog(
+                            firstDate: DateTime(now.year, now.month, now.day),
+                            lastDate: now.add(const Duration(days: 365)),
+                            initialDateRange: startDate != null && endDate != null
+                                ? DateTimeRange(start: startDate!, end: endDate!)
+                                : null,
+                          ),
+                        );
+
+                        if (picked != null && selectedCounsellor != null) {
+                          setState(() {
+                            startDate = picked.start;
+                            endDate = picked.end;
+                            loadingConflicts = true;
+                          });
+
+                          final startOfDay = DateTime(
+                            picked.start.year,
+                            picked.start.month,
+                            picked.start.day,
+                          );
+                          final endOfDay = DateTime(
+                            picked.end.year,
+                            picked.end.month,
+                            picked.end.day,
+                            23,
+                            59,
+                            59,
+                          );
+
+                          final overlaps = await ref
+                              .read(firestoreServiceProvider)
+                              .counsellorAppointmentsOverlapping(
+                                counsellorId: selectedCounsellor!.uid,
+                                start: startOfDay,
+                                end: endOfDay,
+                              );
+
+                          if (ctx.mounted) {
+                            setState(() {
+                              conflicts = overlaps;
+                              loadingConflicts = false;
+                            });
+                          }
+                        }
+                      },
+                    ),
+                    if (loadingConflicts)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text('Checking bookings...'),
+                          ],
+                        ),
+                      ),
+                    if (!loadingConflicts && conflicts.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Bookings in this range', style: TextStyle(fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 8),
+                            ...conflicts.map(
+                              (a) => Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.event_busy, size: 18),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '${DateFormat('MMM d, y').format(a.start)} • ${DateFormat('h:mm a').format(a.start)} - ${DateFormat('h:mm a').format(a.end)}',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text('Please reschedule these before adding the leave.', style: Theme.of(context).textTheme.bodySmall),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: reasonController,
+                      decoration: const InputDecoration(labelText: 'Reason (optional)'),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.check_circle),
+                          label: const Text('Add Leave'),
+                          onPressed: selectedCounsellor != null && startDate != null && endDate != null && !loadingConflicts && conflicts.isEmpty
+                              ? () async {
+                                  await firestore.addLeave(
+                                    userId: selectedCounsellor!.uid,
+                                    startDate: startDate!,
+                                    endDate: endDate!,
+                                    reason: reasonController.text.trim(),
+                                    leaveType: leaveType,
+                                  );
+                                  if (context.mounted) {
+                                    Navigator.pop(dialogContext);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Leave added and bookings will be blocked during the period.')),
+                                    );
+                                  }
+                                }
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    Color _getLeaveTypeColor(String type) {
+      switch (type.toLowerCase()) {
+        case 'medical':
+          return Colors.red.shade100;
+        case 'personal':
+          return Colors.blue.shade100;
+        case 'emergency':
+          return Colors.orange.shade100;
+        default:
+          return Colors.grey.shade100;
+      }
+    }
+
+    Future<void> _handleLeaveRequest(
+      BuildContext context,
+      WidgetRef ref,
+      String requestId,
+      String counsellorId,
+      bool approved,
+      String counsellorName,
+    ) async {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(approved ? 'Approve Leave' : 'Decline Leave'),
+          content: Text(
+            approved
+                ? 'Approve leave request for $counsellorName? This will block bookings during the leave period.'
+                : 'Decline leave request for $counsellorName? Bookings will remain available.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: approved ? Colors.green : Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(approved ? 'Approve' : 'Decline'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true) {
+        try {
+          final firestore = ref.read(firestoreServiceProvider);
+          await firestore.processLeaveRequest(requestId, approved);
+        
+          // Send notification to counsellor
+          await firestore.sendNotification(
+            userId: counsellorId,
+            title: approved ? 'Leave Approved' : 'Leave Declined',
+            message: approved
+                ? 'Your leave request has been approved by admin.'
+                : 'Your leave request has been declined by admin.',
+            type: approved ? 'leave_approved' : 'leave_declined',
+          );
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(approved ? 'Leave request approved' : 'Leave request declined'),
+                backgroundColor: approved ? Colors.green : Colors.red,
+              ),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error: $e')),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  // ===== ADMIN PROFILE TAB =====
+  class _AdminProfileTab extends ConsumerStatefulWidget {
+  const _AdminProfileTab();
+
+  @override
+  ConsumerState<_AdminProfileTab> createState() => _AdminProfileTabState();
+}
+
+class _AdminProfileTabState extends ConsumerState<_AdminProfileTab> {
+  @override
+  Widget build(BuildContext context) {
+    final authService = ref.watch(authServiceProvider);
+    final currentUserUid = authService.currentUserUid();
+
+    if (currentUserUid.isEmpty) {
+      return const Center(child: Text('No user logged in'));
+    }
+
+    return StreamBuilder<UserProfile?>(
+      stream: authService.profileStream(currentUserUid),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final admin = snapshot.data!;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 56,
+                      backgroundImage: admin.photoUrl != null ? NetworkImage(admin.photoUrl!) : null,
+                      child: admin.photoUrl == null ? const Icon(Icons.person, size: 56) : null,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(admin.displayName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text('Administrator', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              const Text('Account Information', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _DetailRow(label: 'Full Name', value: admin.displayName, canEdit: false),
+                      const Divider(height: 24),
+                      _DetailRow(label: 'Email', value: admin.email, canEdit: false),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text('Security', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () => _showChangePasswordDialog(context, authService),
+                icon: const Icon(Icons.lock),
+                label: const Text('Change Password'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showChangePasswordDialog(BuildContext context, AuthService authService) async {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+
+    bool hasMin = false;
+    bool hasUpper = false;
+    bool hasSpecial = false;
+    bool matches = false;
+
+    bool _isValid(String pwd) {
+      hasMin = pwd.length >= 8;
+      hasUpper = RegExp(r'[A-Z]').hasMatch(pwd);
+      hasSpecial = RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(pwd);
+      matches = pwd == confirmPasswordController.text;
+      return hasMin && hasUpper && hasSpecial && matches;
+    }
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setState) => Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Change Password', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: currentPasswordController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: 'Current Password',
+                      prefixIcon: const Icon(Icons.lock),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: newPasswordController,
+                    obscureText: true,
+                    onChanged: (_) {
+                      _isValid(newPasswordController.text);
+                      setState(() {});
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'New Password',
+                      prefixIcon: const Icon(Icons.lock),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: confirmPasswordController,
+                    obscureText: true,
+                    onChanged: (_) {
+                      _isValid(newPasswordController.text);
+                      setState(() {});
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Confirm New Password',
+                      prefixIcon: const Icon(Icons.lock),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _PasswordRule(label: 'Minimum 8 characters', satisfied: newPasswordController.text.length >= 8),
+                      _PasswordRule(label: 'At least 1 uppercase letter', satisfied: RegExp(r'[A-Z]').hasMatch(newPasswordController.text)),
+                      _PasswordRule(label: 'At least 1 special character', satisfied: RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(newPasswordController.text)),
+                      _PasswordRule(label: 'Passwords match', satisfied: newPasswordController.text.isNotEmpty && newPasswordController.text == confirmPasswordController.text),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final ok = _isValid(newPasswordController.text);
+                          if (!ok) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please meet all password requirements')),
+                              );
+                            }
+                            return;
+                          }
+
+                          try {
+                            await authService.changePassword(
+                              currentPassword: currentPasswordController.text,
+                              newPassword: newPasswordController.text,
+                            );
+                            if (context.mounted) {
+                              Navigator.pop(dialogContext);
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed successfully')));
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                            }
+                          }
+                        },
+                        child: const Text('Update Password'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    currentPasswordController.dispose();
+    newPasswordController.dispose();
+    confirmPasswordController.dispose();
+  }
+}
+
+class _PasswordRule extends StatelessWidget {
+  const _PasswordRule({required this.label, required this.satisfied});
+
+  final String label;
+  final bool satisfied;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Icon(
+            satisfied ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 18,
+            color: satisfied ? Colors.green : Colors.grey,
+          ),
+          const SizedBox(width: 8),
+          Text(label, style: TextStyle(color: satisfied ? Colors.green : Colors.grey[700])),
+        ],
+      ),
+    );
+  }
+}
+
+// ===== HELPER WIDGETS =====
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value, this.canEdit = true});
+
+  final String label;
+  final String value;
+  final bool canEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+          const SizedBox(height: 4),
+          Container(
+            width: double.maxFinite,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
+            child: Text(value, style: const TextStyle(fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+}
