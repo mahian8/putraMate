@@ -25,8 +25,12 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
         title: const Text('Logout'),
         content: const Text('Are you sure you want to logout?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Logout')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Logout')),
         ],
       ),
     );
@@ -87,7 +91,8 @@ class _OverviewTab extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [
-            Text('Overview', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text('Overview',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             SizedBox(height: 8),
             Text('Summary widgets can go here.'),
           ],
@@ -119,12 +124,15 @@ class _AdminProfileTab extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Email: ${user.email}', style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text('Email: ${user.email}',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           ElevatedButton.icon(
             icon: const Icon(Icons.logout),
             label: const Text('Logout'),
-            onPressed: () => context.findAncestorStateOfType<_AdminDashboardPageState>()?._logout(),
+            onPressed: () => context
+                .findAncestorStateOfType<_AdminDashboardPageState>()
+                ?._logout(),
           ),
         ],
       ),
@@ -136,7 +144,8 @@ class _LeaveManagementTab extends ConsumerStatefulWidget {
   const _LeaveManagementTab();
 
   @override
-  ConsumerState<_LeaveManagementTab> createState() => _LeaveManagementTabState();
+  ConsumerState<_LeaveManagementTab> createState() =>
+      _LeaveManagementTabState();
 }
 
 class _LeaveManagementTabState extends ConsumerState<_LeaveManagementTab> {
@@ -182,7 +191,8 @@ class _LeaveManagementTabState extends ConsumerState<_LeaveManagementTab> {
                   ElevatedButton.icon(
                     icon: const Icon(Icons.add),
                     label: const Text('Add Leave'),
-                    onPressed: () => _showAddLeaveDialog(context, idToName, counsellors),
+                    onPressed: () =>
+                        _showAddLeaveDialog(context, idToName, counsellors),
                   ),
                 ],
               ),
@@ -200,7 +210,8 @@ class _LeaveManagementTabState extends ConsumerState<_LeaveManagementTab> {
                   final filtered = q.isEmpty
                       ? leaves
                       : leaves.where((l) {
-                          final name = (idToName[l['userId']] ?? '').toLowerCase();
+                          final name =
+                              (idToName[l['userId']] ?? '').toLowerCase();
                           return name.contains(q);
                         }).toList();
 
@@ -209,28 +220,37 @@ class _LeaveManagementTabState extends ConsumerState<_LeaveManagementTab> {
                   }
 
                   return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     itemCount: filtered.length,
                     itemBuilder: (context, i) {
                       final leave = filtered[i];
-                      final start = DateTime.fromMillisecondsSinceEpoch(leave['startDate'] as int);
-                      final end = DateTime.fromMillisecondsSinceEpoch(leave['endDate'] as int);
+                      final start = DateTime.fromMillisecondsSinceEpoch(
+                          leave['startDate'] as int);
+                      final end = DateTime.fromMillisecondsSinceEpoch(
+                          leave['endDate'] as int);
                       final reason = leave['reason'] as String? ?? '';
-                      final leaveType = leave['leaveType'] as String? ?? 'leave';
-                      final counsellorName = idToName[leave['userId']] ?? 'Unknown';
+                      final leaveType =
+                          leave['leaveType'] as String? ?? 'leave';
+                      final counsellorName =
+                          idToName[leave['userId']] ?? 'Unknown';
 
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
-                          leading: const Icon(Icons.event_busy, color: Colors.orange),
+                          leading: const Icon(Icons.event_busy,
+                              color: Colors.orange),
                           title: Text(
                             '${DateFormat('MMM dd, yyyy').format(start)} - ${DateFormat('MMM dd, yyyy').format(end)}',
                           ),
-                          subtitle: Text('$counsellorName • $leaveType${reason.isNotEmpty ? ' • $reason' : ''}'),
+                          subtitle: Text(
+                              '$counsellorName • $leaveType${reason.isNotEmpty ? ' • $reason' : ''}'),
                           trailing: IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
                             onPressed: () async {
-                              await ref.read(firestoreServiceProvider).deleteLeave(leave['id'] as String);
+                              await ref
+                                  .read(firestoreServiceProvider)
+                                  .deleteLeave(leave['id'] as String);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Leave deleted')),
                               );
@@ -279,15 +299,19 @@ class _LeaveManagementTabState extends ConsumerState<_LeaveManagementTab> {
                 DropdownButtonFormField<String>(
                   value: selectedId,
                   items: counsellors
-                      .map((c) => DropdownMenuItem(value: c.uid, child: Text(c.displayName)))
+                      .map((c) => DropdownMenuItem(
+                          value: c.uid, child: Text(c.displayName)))
                       .toList(),
                   onChanged: (v) => setState(() => selectedId = v),
-                  decoration: const InputDecoration(labelText: 'Counsellor', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: 'Counsellor', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: reasonCtrl,
-                  decoration: const InputDecoration(labelText: 'Reason (optional)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: 'Reason (optional)',
+                      border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -297,7 +321,8 @@ class _LeaveManagementTabState extends ConsumerState<_LeaveManagementTab> {
                     DropdownMenuItem(value: 'medical', child: Text('Medical')),
                   ],
                   onChanged: (v) => setState(() => leaveType = v ?? 'general'),
-                  decoration: const InputDecoration(labelText: 'Leave Type', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: 'Leave Type', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -326,7 +351,9 @@ class _LeaveManagementTabState extends ConsumerState<_LeaveManagementTab> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
                 if (selectedId == null || range == null) return;
@@ -338,7 +365,8 @@ class _LeaveManagementTabState extends ConsumerState<_LeaveManagementTab> {
                 );
                 if (conflicts.isNotEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Conflicts with existing bookings')),
+                    const SnackBar(
+                        content: Text('Conflicts with existing bookings')),
                   );
                   return;
                 }
@@ -351,7 +379,9 @@ class _LeaveManagementTabState extends ConsumerState<_LeaveManagementTab> {
                 );
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Leave added for ${idToName[selectedId!]}')),
+                  SnackBar(
+                      content:
+                          Text('Leave added for ${idToName[selectedId!]}')),
                 );
               },
               child: const Text('Save'),
