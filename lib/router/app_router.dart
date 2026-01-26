@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../features/admin/admin_dashboard_page_clean.dart';
+import '../features/admin/admin_dashboard_page.dart';
 import '../features/admin/community_moderation_page.dart';
 import '../features/admin/logs_page.dart';
 import '../features/admin/manage_counsellors_page.dart';
@@ -22,7 +22,6 @@ import '../features/counsellor/counsellor_dashboard_page.dart';
 import '../features/counsellor/session_notes_page.dart';
 import '../features/counsellor/student_insights_page.dart';
 import '../features/shared/profile_page.dart';
-import '../features/shared/splash_page.dart';
 import '../features/student/appointment_detail_page.dart';
 import '../features/student/booking_calendar_page.dart';
 import '../features/student/chatbot_page.dart';
@@ -36,7 +35,6 @@ import '../models/user_profile.dart';
 import '../providers/auth_providers.dart';
 
 enum AppRoute {
-  splash,
   login,
   register,
   forgotPassword,
@@ -99,12 +97,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(
-        name: AppRoute.splash.name,
+        name: AppRoute.login.name,
         path: '/',
-        builder: (context, state) => const SplashPage(),
+        builder: (context, state) => const LoginPage(),
       ),
       GoRoute(
-        name: AppRoute.login.name,
         path: '/login',
         builder: (context, state) => const LoginPage(),
       ),
@@ -126,7 +123,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         name: AppRoute.dashboard.name,
         path: '/dashboard',
-        builder: (context, state) => const SplashPage(),
+        builder: (context, state) => const LoginPage(),
       ),
       GoRoute(
         name: AppRoute.studentDashboard.name,

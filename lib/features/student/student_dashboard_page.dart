@@ -25,7 +25,7 @@ class StudentDashboardPage extends ConsumerStatefulWidget {
 
 class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
   int _currentPage = 0;
-  final int _postsPerPage = 10;
+  final int _postsPerPage = 3;
   static final _random = Random();
   DateTime _calendarFocusedDay = DateTime.now();
   DateTime? _calendarSelectedDay;
@@ -38,6 +38,28 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
     // Check if demo needs to be shown for first-time users
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndShowDemo();
+      // Process appointment reminders
+      _processAppointmentReminders();
+      // Nudge mood check-in if inactive
+      _processMoodInactivityReminder();
+    });
+  }
+
+  void _processAppointmentReminders() {
+    final authState = ref.read(authStateProvider);
+    authState.whenData((user) {
+      if (user != null) {
+        ref.read(firestoreProvider).sendAppointmentReminders(user.uid);
+      }
+    });
+  }
+
+  void _processMoodInactivityReminder() {
+    final authState = ref.read(authStateProvider);
+    authState.whenData((user) {
+      if (user != null) {
+        ref.read(firestoreProvider).sendMoodInactivityReminder(user.uid);
+      }
     });
   }
 
@@ -598,7 +620,7 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
                     ),
                     child: Column(
                       children: [
-                        ...notes.take(5).map((a) => ListTile(
+                        ...notes.take(3).map((a) => ListTile(
                               contentPadding:
                                   const EdgeInsets.symmetric(vertical: 6),
                               title: Text(DateFormat('MMM d, y • h:mm a')

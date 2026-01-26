@@ -18,7 +18,8 @@ class AppointmentDetailPage extends ConsumerWidget {
     final fs = ref.watch(firestoreServiceProvider);
     final df = DateFormat('EEEE, MMM d, y \\at h:mm a');
     final tf = DateFormat('h:mm a');
-    final durationMinutes = appointment.end.difference(appointment.start).inMinutes;
+    final durationMinutes =
+        appointment.end.difference(appointment.start).inMinutes;
 
     return PrimaryScaffold(
       title: 'Appointment Details',
@@ -46,7 +47,8 @@ class AppointmentDetailPage extends ConsumerWidget {
                           child: Column(
                             children: [
                               Text(DateFormat('MMM').format(appointment.start),
-                                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold)),
                               Text('${appointment.start.day}',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w700,
@@ -218,12 +220,17 @@ class AppointmentDetailPage extends ConsumerWidget {
                                   label: const Text('Join meeting'),
                                   onPressed: () async {
                                     final raw = appointment.meetLink!.trim();
-                                    final normalized = raw.startsWith('http') ? raw : 'https://$raw';
+                                    final normalized = raw.startsWith('http')
+                                        ? raw
+                                        : 'https://$raw';
                                     final uri = Uri.tryParse(normalized);
                                     if (uri == null) {
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Invalid meeting link')),
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                              content:
+                                                  Text('Invalid meeting link')),
                                         );
                                       }
                                       return;
@@ -234,12 +241,16 @@ class AppointmentDetailPage extends ConsumerWidget {
                                         mode: LaunchMode.externalApplication,
                                       );
                                       if (!launched) {
-                                        await launchUrl(uri, mode: LaunchMode.platformDefault);
+                                        await launchUrl(uri,
+                                            mode: LaunchMode.platformDefault);
                                       }
                                     } catch (_) {
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Could not open meeting link')),
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                              content: Text(
+                                                  'Could not open meeting link')),
                                         );
                                       }
                                     }
@@ -255,7 +266,8 @@ class AppointmentDetailPage extends ConsumerWidget {
                                     ClipboardData(text: appointment.meetLink!),
                                   );
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Link copied')),
+                                    const SnackBar(
+                                        content: Text('Link copied')),
                                   );
                                 },
                               ),
@@ -342,6 +354,25 @@ class AppointmentDetailPage extends ConsumerWidget {
                   ),
                 ],
 
+                // Review Button (for completed sessions without review)
+                if (appointment.status == AppointmentStatus.completed &&
+                    appointment.studentRating == null) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.rate_review),
+                      label: const Text('Write a Review'),
+                      onPressed: () => _showReviewDialog(context, ref),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: Colors.amber.shade600,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+
                 // Your Review
                 if (appointment.studentRating != null) ...[
                   const SizedBox(height: 16),
@@ -371,8 +402,8 @@ class AppointmentDetailPage extends ConsumerWidget {
                               const SizedBox(width: 8),
                               Text(
                                 '${appointment.studentRating}/5',
-                                style:
-                                    const TextStyle(fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
                               ),
                             ],
                           ),
@@ -472,7 +503,8 @@ class AppointmentDetailPage extends ConsumerWidget {
     }
     return Chip(
       backgroundColor: bg,
-      label: Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w600)),
+      label:
+          Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w600)),
       side: BorderSide.none,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
     );
@@ -487,6 +519,131 @@ class AppointmentDetailPage extends ConsumerWidget {
       ),
       label: Text(isOnline ? 'Online' : 'Face-to-Face'),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+    );
+  }
+
+  void _showReviewDialog(BuildContext context, WidgetRef ref) {
+    int rating = 5;
+    final commentController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Rate this Session'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('How would you rate this counselling session?'),
+                const SizedBox(height: 16),
+                Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(
+                      5,
+                      (i) => IconButton(
+                        icon: Icon(
+                          Icons.star,
+                          size: 32,
+                          color:
+                              i < rating ? Colors.amber : Colors.grey.shade300,
+                        ),
+                        onPressed: () => setState(() => rating = i + 1),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    '$rating / 5',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text('Any additional comments? (Optional)'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: commentController,
+                  decoration: const InputDecoration(
+                    hintText: 'Share your feedback...',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  // Create updated appointment with review
+                  final updated = Appointment(
+                    id: appointment.id,
+                    studentId: appointment.studentId,
+                    counsellorId: appointment.counsellorId,
+                    start: appointment.start,
+                    end: appointment.end,
+                    status: appointment.status,
+                    topic: appointment.topic,
+                    location: appointment.location,
+                    meetLink: appointment.meetLink,
+                    notes: appointment.notes,
+                    sentiment: appointment.sentiment,
+                    sessionType: appointment.sessionType,
+                    initialProblem: appointment.initialProblem,
+                    riskLevel: appointment.riskLevel,
+                    counsellorNotes: appointment.counsellorNotes,
+                    followUpPlan: appointment.followUpPlan,
+                    studentRating: rating,
+                    studentComment: commentController.text.trim().isEmpty
+                        ? null
+                        : commentController.text.trim(),
+                    isReviewApproved: appointment.isReviewApproved,
+                    createdAt: appointment.createdAt,
+                    updatedAt: DateTime.now(),
+                  );
+                  await ref
+                      .read(firestoreServiceProvider)
+                      .upsertAppointment(updated);
+                  if (context.mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Review submitted successfully!'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error submitting review: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber.shade600,
+              ),
+              child: const Text('Submit Review'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

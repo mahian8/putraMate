@@ -50,6 +50,75 @@ class FirestoreService {
         .add(entry.toJson());
   }
 
+  /// Send a reminder if the user has not logged any mood entry within the threshold
+  Future<void> sendMoodInactivityReminder(
+    String userId, {
+    Duration threshold = const Duration(hours: 24),
+  }) async {
+    try {
+      final now = DateTime.now();
+      final thresholdAgo = now.subtract(threshold);
+
+      // Last mood entry time
+      final moodSnap = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('moods')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+
+      DateTime? lastMood;
+      if (moodSnap.docs.isNotEmpty) {
+        final ts = (moodSnap.docs.first.data()['timestamp'] as num?)?.toInt();
+        if (ts != null) {
+          lastMood = DateTime.fromMillisecondsSinceEpoch(ts);
+        }
+      }
+
+      // Last reminder time for this type
+      final reminderSnap = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('notifications')
+          .where('type', isEqualTo: 'mood_checkin_reminder')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+
+      DateTime? lastReminder;
+      if (reminderSnap.docs.isNotEmpty) {
+        final ts =
+            (reminderSnap.docs.first.data()['createdAt'] as num?)?.toInt();
+        if (ts != null) {
+          lastReminder = DateTime.fromMillisecondsSinceEpoch(ts);
+        }
+      }
+
+      final inactive = lastMood == null || lastMood.isBefore(thresholdAgo);
+      final reminderStale =
+          lastReminder == null || lastReminder.isBefore(thresholdAgo);
+
+      if (inactive && reminderStale) {
+        await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('notifications')
+            .add({
+          'title': 'How are you feeling today?',
+          'message':
+              "It's been a while since your last check-in. Share a quick mood update to stay on track.",
+          'type': 'mood_checkin_reminder',
+          'read': false,
+          'createdAt': now.millisecondsSinceEpoch,
+        });
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('Error sending mood inactivity reminder: $e');
+    }
+  }
+
   /// Get counselors whose expertise matches problem keywords
   Future<List<UserProfile>> getCounselorsByExpertise(
       List<String> keywords) async {
@@ -267,11 +336,15 @@ class FirestoreService {
     return _firestore
         .collection('appointments')
         .where('studentId', isEqualTo: studentId)
-        .orderBy('start', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => Appointment.fromJson(doc.data(), doc.id))
-            .toList());
+        .map((snap) {
+      final appointments = snap.docs
+          .map((doc) => Appointment.fromJson(doc.data(), doc.id))
+          .toList();
+      // Sort by start time (newest first) in code to avoid needing a composite index
+      appointments.sort((a, b) => b.start.compareTo(a.start));
+      return appointments;
+    });
   }
 
   // Counsellor view of a single student's sessions (security-friendly: counsellorId filter)
@@ -494,23 +567,53 @@ class FirestoreService {
 
     // Notify on confirmation
     if (status == AppointmentStatus.confirmed && studentId != null) {
-      String message = 'Your session has been confirmed.';
-      if (meetLink != null && meetLink.isNotEmpty) {
-        message += ' Meet link: $meetLink';
+      try {
+        await _firestore.runTransaction((tx) async {
+          final latest = await tx
+              .get(_firestore.collection('appointments').doc(appointmentId));
+          final latestData = latest.data() ?? {};
+          final sent =
+              latestData['studentConfirmationNotified'] as bool? ?? false;
+          if (sent) return;
+
+          // Prefer provided meetLink, else fall back to appointment data
+          final effectiveMeetLink = (() {
+            if (meetLink != null && meetLink.trim().isNotEmpty) {
+              return meetLink.trim();
+            }
+            final stored = latestData['meetLink'] as String?;
+            if (stored != null && stored.trim().isNotEmpty) {
+              return stored.trim();
+            }
+            return null;
+          })();
+
+          String message = 'Your session has been confirmed.';
+          if (effectiveMeetLink != null) {
+            message += ' Meet link: $effectiveMeetLink';
+          }
+
+          final notifRef = _firestore
+              .collection('users')
+              .doc(studentId)
+              .collection('notifications')
+              .doc();
+
+          tx.set(notifRef, {
+            'title': 'Appointment Confirmed',
+            'message': message,
+            'appointmentId': appointmentId,
+            'type': 'appointment_confirmed',
+            'read': false,
+            'meetLink': effectiveMeetLink,
+            'createdAt': DateTime.now().millisecondsSinceEpoch,
+          });
+
+          tx.update(latest.reference, {'studentConfirmationNotified': true});
+        });
+      } catch (e) {
+        print('Error sending confirmation notification: $e');
       }
-      await _firestore
-          .collection('users')
-          .doc(studentId)
-          .collection('notifications')
-          .add({
-        'title': 'Appointment Confirmed',
-        'message': message,
-        'appointmentId': appointmentId,
-        'type': 'appointment_confirmed',
-        'read': false,
-        'meetLink': meetLink,
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-      });
     }
 
     // If session completed, send review notifications
@@ -565,26 +668,84 @@ class FirestoreService {
       'updatedAt': DateTime.now().millisecondsSinceEpoch,
     }, SetOptions(merge: true));
 
-    // If location provided and pending, send notification
+    // Get appointment data to send notifications
     final apptSnap =
         await _firestore.collection('appointments').doc(appointmentId).get();
     final data = apptSnap.data() ?? {};
     final studentId = data['studentId'] as String?;
 
-    if (location != null && location.isNotEmpty && studentId != null) {
-      await _firestore
-          .collection('users')
-          .doc(studentId)
-          .collection('notifications')
-          .add({
-        'title': 'Meeting Location Added',
-        'message':
-            'Your counsellor has provided the meeting location: $location',
-        'appointmentId': appointmentId,
-        'type': 'location_added',
-        'read': false,
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-      });
+    if (studentId == null) return;
+
+    try {
+      // Send location notification
+      if (location != null && location.isNotEmpty) {
+        await _firestore
+            .collection('users')
+            .doc(studentId)
+            .collection('notifications')
+            .add({
+          'title': '📍 Meeting Location Added',
+          'message':
+              'Your counsellor has provided the meeting location: $location',
+          'appointmentId': appointmentId,
+          'type': 'location_added',
+          'read': false,
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
+
+      // Send meeting link notification
+      if (meetLink != null && meetLink.isNotEmpty) {
+        await _firestore
+            .collection('users')
+            .doc(studentId)
+            .collection('notifications')
+            .add({
+          'title': '🔗 Online Meeting Link Ready',
+          'message':
+              'Your counsellor has shared the Google Meet link. Join the session!',
+          'appointmentId': appointmentId,
+          'type': 'meetlink_added',
+          'read': false,
+          'meetLink': meetLink,
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
+
+      // Send session notes notification
+      if (counsellorNotes != null && counsellorNotes.isNotEmpty) {
+        await _firestore
+            .collection('users')
+            .doc(studentId)
+            .collection('notifications')
+            .add({
+          'title': '📝 Session Notes Added',
+          'message': 'Your counsellor has added notes about your session',
+          'appointmentId': appointmentId,
+          'type': 'notes_added',
+          'read': false,
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
+
+      // Send follow-up plan notification
+      if (followUpPlan != null && followUpPlan.isNotEmpty) {
+        await _firestore
+            .collection('users')
+            .doc(studentId)
+            .collection('notifications')
+            .add({
+          'title': '📋 Follow-up Plan Created',
+          'message':
+              'Your counsellor has created a personalized follow-up plan for you',
+          'appointmentId': appointmentId,
+          'type': 'followup_plan_added',
+          'read': false,
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
+    } catch (e) {
+      print('Error sending update notifications: $e');
     }
   }
 
@@ -649,8 +810,121 @@ class FirestoreService {
     }
   }
 
+  /// Send reminder notifications at 5 minutes, 2 minutes, and session start (0 minutes).
+  /// Each reminder is sent only once to avoid duplicates.
+  Future<void> sendAppointmentReminders(String userId) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final fiveMinMs = 5 * 60 * 1000;
+    final twoMinMs = 2 * 60 * 1000;
+
+    final snap = await _firestore
+        .collection('appointments')
+        .where('participants', arrayContains: userId)
+        .get();
+
+    for (final doc in snap.docs) {
+      try {
+        final data = doc.data();
+        final start = (data['start'] as num?)?.toInt();
+        final studentId = data['studentId'] as String?;
+        final statusStr = data['status'] as String? ?? 'pending';
+
+        if (start == null || studentId == null || studentId != userId) continue;
+
+        final isConfirmed = statusStr == AppointmentStatus.confirmed.name ||
+            statusStr == AppointmentStatus.pending.name;
+        if (!isConfirmed) continue;
+
+        final timeToStart = start - now;
+
+        // Send 5-minute reminder (transactional to avoid duplicates)
+        if (timeToStart > 0 && timeToStart <= fiveMinMs) {
+          await _firestore.runTransaction((tx) async {
+            final latest = await tx.get(doc.reference);
+            final sent =
+                latest.data()?['studentReminder5MinSent'] as bool? ?? false;
+            if (sent) return;
+
+            final notifRef = _firestore
+                .collection('users')
+                .doc(userId)
+                .collection('notifications')
+                .doc();
+
+            tx.set(notifRef, {
+              'title': '⏰ Session Reminder',
+              'message': 'Your session starts in 5 minutes!',
+              'appointmentId': doc.id,
+              'type': 'appointment_reminder_5min',
+              'read': false,
+              'createdAt': DateTime.now().millisecondsSinceEpoch,
+            });
+            tx.update(doc.reference, {'studentReminder5MinSent': true});
+          });
+        }
+
+        // Send 2-minute reminder (transactional to avoid duplicates)
+        if (timeToStart > 0 && timeToStart <= twoMinMs) {
+          await _firestore.runTransaction((tx) async {
+            final latest = await tx.get(doc.reference);
+            final sent =
+                latest.data()?['studentReminder2MinSent'] as bool? ?? false;
+            if (sent) return;
+
+            final notifRef = _firestore
+                .collection('users')
+                .doc(userId)
+                .collection('notifications')
+                .doc();
+
+            tx.set(notifRef, {
+              'title': '⏰ Session Starting Soon',
+              'message': 'Your session starts in 2 minutes. Get ready!',
+              'appointmentId': doc.id,
+              'type': 'appointment_reminder_2min',
+              'read': false,
+              'createdAt': DateTime.now().millisecondsSinceEpoch,
+            });
+            tx.update(doc.reference, {'studentReminder2MinSent': true});
+          });
+        }
+
+        // Send session start reminder (0 minutes) transactional
+        if (timeToStart >= 0 && timeToStart <= 30000) {
+          await _firestore.runTransaction((tx) async {
+            final latest = await tx.get(doc.reference);
+            final sent =
+                latest.data()?['studentReminderStartSent'] as bool? ?? false;
+            if (sent) return;
+
+            final notifRef = _firestore
+                .collection('users')
+                .doc(userId)
+                .collection('notifications')
+                .doc();
+
+            tx.set(notifRef, {
+              'title': '✅ Your Session is Starting Now',
+              'message':
+                  'Your counselling session is now starting. Join the meeting!',
+              'appointmentId': doc.id,
+              'type': 'appointment_reminder_start',
+              'read': false,
+              'createdAt': DateTime.now().millisecondsSinceEpoch,
+            });
+            tx.update(doc.reference, {'studentReminderStartSent': true});
+          });
+        }
+      } catch (e) {
+        print('Error sending appointment reminders: $e');
+      }
+    }
+  }
+
   /// Send a reminder notification to the student 5 minutes before start time.
   /// Marks `studentReminderSent: true` on the appointment to avoid duplicates.
+  @Deprecated(
+      'Use sendAppointmentReminders instead - sends 5min, 2min, and start reminders')
   Future<void> sendUpcomingReminderIfDue(String userId) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final fiveMinMs = 5 * 60 * 1000;
@@ -930,6 +1204,7 @@ class FirestoreService {
       'endDate': endDate.millisecondsSinceEpoch,
       'reason': reason,
       'leaveType': leaveType,
+      'status': 'approved', // Admin-created leaves are auto-approved
       'createdAt': DateTime.now().millisecondsSinceEpoch,
     });
   }
@@ -1005,6 +1280,30 @@ class FirestoreService {
         .collection('notifications')
         .doc(notificationId)
         .update({'read': true});
+  }
+
+  Future<void> deleteNotification(String userId, String notificationId) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('notifications')
+        .doc(notificationId)
+        .delete();
+  }
+
+  Future<void> deleteAllNotifications(String userId) async {
+    final batch = _firestore.batch();
+    final snap = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('notifications')
+        .get();
+
+    for (final doc in snap.docs) {
+      batch.delete(doc.reference);
+    }
+
+    await batch.commit();
   }
 
   /// Send a generic notification to a user
@@ -1373,5 +1672,170 @@ class FirestoreService {
       if (!snap.exists) return null;
       return UserProfile.fromJson({...snap.data()!, 'uid': snap.id});
     });
+  }
+
+  // Chat conversation methods for chatbot
+  Future<String> createChatConversation(String userId) async {
+    final docRef = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('chatHistory')
+        .add({
+      'createdAt': DateTime.now().millisecondsSinceEpoch,
+      'messages': [],
+    });
+    return docRef.id;
+  }
+
+  Future<void> saveChatMessageToConversation({
+    required String userId,
+    required String conversationId,
+    required String sender,
+    required String text,
+    Map<String, dynamic>? metadata,
+    Map<String, dynamic>? sentiment,
+  }) async {
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('chatHistory')
+        .doc(conversationId)
+        .collection('messages')
+        .add({
+      'sender': sender,
+      'text': text,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      if (sentiment != null) 'sentiment': sentiment,
+      if (metadata != null) ...metadata,
+    });
+  }
+
+  Stream<List<Map<String, dynamic>>> getConversationMessages(
+      String userId, String conversationId) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('chatHistory')
+        .doc(conversationId)
+        .collection('messages')
+        .orderBy('timestamp', descending: false)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList());
+  }
+
+  Future<void> deleteChatConversation(
+      String userId, String conversationId) async {
+    // Delete all messages in conversation
+    final messagesSnap = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('chatHistory')
+        .doc(conversationId)
+        .collection('messages')
+        .get();
+
+    for (final doc in messagesSnap.docs) {
+      await doc.reference.delete();
+    }
+
+    // Delete conversation
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('chatHistory')
+        .doc(conversationId)
+        .delete();
+  }
+
+  Stream<List<Map<String, dynamic>>> getChatConversations(String userId) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('chatHistory')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList());
+  }
+
+  // Check if user exists by email
+  Future<bool> checkUserExistsByEmail(String email) async {
+    try {
+      final emailToSearch = email.trim();
+
+      // Try with original case first
+      var querySnap = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: emailToSearch)
+          .limit(1)
+          .get();
+
+      if (querySnap.docs.isNotEmpty) {
+        return true;
+      }
+
+      // Try with lowercase
+      querySnap = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: emailToSearch.toLowerCase())
+          .limit(1)
+          .get();
+
+      return querySnap.docs.isNotEmpty;
+    } catch (e) {
+      print('Error checking user existence: $e');
+      return false;
+    }
+  }
+
+  // Verify user details for forgot password
+  Future<UserProfile?> verifyUserDetailsByEmail({
+    required String email,
+    required String studentId,
+    required String phoneNumber,
+    required String dateOfBirth,
+    required String bloodType,
+  }) async {
+    try {
+      final emailToSearch = email.trim();
+
+      // Try with original case first
+      var querySnap = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: emailToSearch)
+          .limit(1)
+          .get();
+
+      // If not found, try with lowercase
+      if (querySnap.docs.isEmpty) {
+        querySnap = await _firestore
+            .collection('users')
+            .where('email', isEqualTo: emailToSearch.toLowerCase())
+            .limit(1)
+            .get();
+      }
+
+      if (querySnap.docs.isEmpty) {
+        return null; // No user found with this email
+      }
+
+      final userData = querySnap.docs.first.data();
+      final user =
+          UserProfile.fromJson({...userData, 'uid': querySnap.docs.first.id});
+
+      // Verify all details match
+      if (user.studentId?.trim() == studentId.trim() &&
+          user.phoneNumber?.trim() == phoneNumber.trim() &&
+          user.dateOfBirth?.trim() == dateOfBirth.trim() &&
+          user.bloodType?.trim() == bloodType.trim()) {
+        return user;
+      }
+
+      return null; // Details don't match
+    } catch (e) {
+      print('Error verifying user details: $e');
+      return null;
+    }
   }
 }

@@ -6,8 +6,6 @@ import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/user_profile.dart';
 import '../../providers/auth_providers.dart';
-import '../../services/auth_service.dart';
-import '../../services/firestore_service.dart';
 import '../student/community_forum_page.dart';
 
 class AdminDashboardPage extends ConsumerStatefulWidget {

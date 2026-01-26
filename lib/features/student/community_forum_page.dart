@@ -201,7 +201,8 @@ class _CommunityForumPageState extends ConsumerState<CommunityForumPage> {
         }
         final posts = snapshot.data ?? [];
 
-        return Column(
+        return ListView(
+          padding: const EdgeInsets.all(16),
           children: [
             SectionCard(
               title: 'Share an update',
@@ -227,194 +228,170 @@ class _CommunityForumPageState extends ConsumerState<CommunityForumPage> {
                 ],
               ),
             ),
-            Expanded(
-              child: posts.isEmpty
-                  ? const EmptyState(message: 'No posts yet')
-                  : ListView.builder(
-                      itemCount: posts.length,
-                      itemBuilder: (context, index) {
-                        final post = posts[index];
-                        final hasLiked = post.likes
-                            .contains(ref.watch(authStateProvider).value?.uid);
-                        return Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  post.title,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  post.content,
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'by ${post.authorName} • ${DateFormat('MMM d').format(post.createdAt)}',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: Icon(
-                                        hasLiked
-                                            ? Icons.favorite
-                                            : Icons.favorite_border,
-                                        color: hasLiked ? Colors.red : null,
-                                      ),
-                                      onPressed: () async {
-                                        final userId = ref
-                                            .read(authStateProvider)
-                                            .value
-                                            ?.uid;
-                                        if (userId != null) {
-                                          try {
-                                            if (hasLiked) {
-                                              await ref
-                                                  .read(firestoreProvider)
-                                                  .unlikeForumPost(
-                                                      post.id, userId);
-                                            } else {
-                                              await ref
-                                                  .read(firestoreProvider)
-                                                  .likeForumPost(
-                                                      post.id, userId);
-                                            }
-                                          } catch (e) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                  content: Text('Error: $e')),
-                                            );
-                                          }
-                                        }
-                                      },
-                                    ),
-                                    Text('${post.likes.length} likes',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall),
-                                    const SizedBox(width: 16),
-                                    IconButton(
-                                      icon: const Icon(Icons.comment_outlined),
-                                      onPressed: () {
-                                        _showCommentDialog(context, post);
-                                      },
-                                    ),
-                                    Text('${post.commentCount} comments',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall),
-                                  ],
-                                ),
-                                if (post.commentCount > 0)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 12),
-                                    child: StreamBuilder<
-                                        List<Map<String, dynamic>>>(
-                                      stream: ref
+            const SizedBox(height: 16),
+            if (posts.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(32.0),
+                child: EmptyState(message: 'No posts yet'),
+              )
+            else
+              ...posts.map((post) {
+                final hasLiked = post.likes
+                    .contains(ref.watch(authStateProvider).value?.uid);
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          post.title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          post.content,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'by ${post.authorName} • ${DateFormat('MMM d').format(post.createdAt)}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                hasLiked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: hasLiked ? Colors.red : null,
+                              ),
+                              onPressed: () async {
+                                final userId =
+                                    ref.read(authStateProvider).value?.uid;
+                                if (userId != null) {
+                                  try {
+                                    if (hasLiked) {
+                                      await ref
                                           .read(firestoreProvider)
-                                          .forumComments(post.id),
-                                      builder: (context, commentSnapshot) {
-                                        final comments =
-                                            commentSnapshot.data ?? [];
-                                        return Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            const Divider(),
-                                            const Text(
-                                              'Recent comments:',
-                                              style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 12),
+                                          .unlikeForumPost(post.id, userId);
+                                    } else {
+                                      await ref
+                                          .read(firestoreProvider)
+                                          .likeForumPost(post.id, userId);
+                                    }
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Error: $e')),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                            Text('${post.likes.length} likes',
+                                style: Theme.of(context).textTheme.bodySmall),
+                            const SizedBox(width: 16),
+                            IconButton(
+                              icon: const Icon(Icons.comment_outlined),
+                              onPressed: () {
+                                _showCommentDialog(context, post);
+                              },
+                            ),
+                            Text('${post.commentCount} comments',
+                                style: Theme.of(context).textTheme.bodySmall),
+                          ],
+                        ),
+                        if (post.commentCount > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: StreamBuilder<List<Map<String, dynamic>>>(
+                              stream: ref
+                                  .read(firestoreProvider)
+                                  .forumComments(post.id),
+                              builder: (context, commentSnapshot) {
+                                final comments = commentSnapshot.data ?? [];
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Divider(),
+                                    const Text(
+                                      'Recent comments:',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    ...comments.take(3).map((comment) =>
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(bottom: 8),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[100],
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                             ),
-                                            const SizedBox(height: 8),
-                                            ...comments.take(3).map((comment) =>
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                          bottom: 8),
-                                                  child: Container(
-                                                    padding:
-                                                        const EdgeInsets.all(8),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.grey[100],
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              8),
-                                                    ),
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Text(
-                                                          comment['userName'] ??
-                                                              'Anonymous',
-                                                          style:
-                                                              const TextStyle(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold,
-                                                                  fontSize: 12),
-                                                        ),
-                                                        Text(
-                                                          comment['content'] ??
-                                                              '',
-                                                          style:
-                                                              const TextStyle(
-                                                                  fontSize: 12),
-                                                        ),
-                                                        Text(
-                                                          DateFormat(
-                                                                  'MMM d, h:mm a')
-                                                              .format(
-                                                            DateTime
-                                                                .fromMillisecondsSinceEpoch(
-                                                              (comment['createdAt']
-                                                                          as num?)
-                                                                      ?.toInt() ??
-                                                                  0,
-                                                            ),
-                                                          ),
-                                                          style:
-                                                              Theme.of(context)
-                                                                  .textTheme
-                                                                  .bodySmall,
-                                                        ),
-                                                      ],
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  comment['userName'] ??
+                                                      'Anonymous',
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 12),
+                                                ),
+                                                Text(
+                                                  comment['content'] ?? '',
+                                                  style: const TextStyle(
+                                                      fontSize: 12),
+                                                ),
+                                                Text(
+                                                  DateFormat('MMM d, h:mm a')
+                                                      .format(
+                                                    DateTime
+                                                        .fromMillisecondsSinceEpoch(
+                                                      (comment['createdAt']
+                                                                  as num?)
+                                                              ?.toInt() ??
+                                                          0,
                                                     ),
                                                   ),
-                                                )),
-                                            if (comments.length > 3)
-                                              TextButton(
-                                                onPressed: () =>
-                                                    _showAllComments(
-                                                        context, post),
-                                                child: Text(
-                                                    'View all ${post.commentCount} comments'),
-                                              ),
-                                          ],
-                                        );
-                                      },
-                                    ),
-                                  ),
-                              ],
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        )),
+                                    if (comments.length > 3)
+                                      TextButton(
+                                        onPressed: () =>
+                                            _showAllComments(context, post),
+                                        child: Text(
+                                            'View all ${post.commentCount} comments'),
+                                      ),
+                                  ],
+                                );
+                              },
                             ),
                           ),
-                        );
-                      },
+                      ],
                     ),
-            ),
+                  ),
+                );
+              }).toList(),
           ],
         );
       },

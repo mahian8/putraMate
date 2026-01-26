@@ -47,16 +47,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           .read(authServiceProvider)
           .signIn(_email.text.trim(), _password.text.trim());
 
-      // Determine destination using stored role; force admin for known admin email if profile missing.
+      // Verify user profile exists and get stored role
       final profile = await ref
           .read(authServiceProvider)
           .profileStream(cred.user!.uid)
           .first;
 
-      final email = cred.user?.email?.toLowerCase();
-      final forcedAdmin = email?.endsWith('@admin.com') ?? false;
-      final role =
-          forcedAdmin ? UserRole.admin : (profile?.role ?? UserRole.student);
+      // Role comes exclusively from the profile database record, never from email
+      final role = profile?.role ?? UserRole.student;
 
       if (!mounted) return;
 
@@ -73,11 +71,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           break;
       }
     } catch (e) {
-      // Extract clean error message by removing "Exception: " prefix
       String errorMsg = e.toString();
-      if (errorMsg.startsWith('Exception: ')) {
+
+      // Map Firebase error codes to user-friendly messages
+      if (errorMsg.contains('user-not-found')) {
+        errorMsg = 'User not found. Would you like to register?';
+      } else if (errorMsg.contains('wrong-password')) {
+        errorMsg = 'Password does not match.';
+      } else if (errorMsg.contains('invalid-email')) {
+        errorMsg = 'Email address is not valid.';
+      } else if (errorMsg.contains('user-disabled')) {
+        errorMsg = 'This account has been disabled.';
+      } else if (errorMsg.contains('too-many-requests')) {
+        errorMsg = 'Too many login attempts. Please try again later.';
+      } else if (errorMsg.startsWith('Exception: ')) {
         errorMsg = errorMsg.substring(11);
       }
+
       if (!mounted) return;
       setState(() => _error = errorMsg);
       print('✗ Login error: $errorMsg');
@@ -162,22 +172,63 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     color: Theme.of(context).colorScheme.error),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.error_outline,
-                                      color:
-                                          Theme.of(context).colorScheme.error),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      _error!,
-                                      style: TextStyle(
+                                  Row(
+                                    children: [
+                                      Icon(Icons.error_outline,
                                           color: Theme.of(context)
                                               .colorScheme
-                                              .error,
-                                          fontSize: 14),
-                                    ),
+                                              .error),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          _error!.split(
+                                              '.')[0], // Show first sentence
+                                          style: TextStyle(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .error,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                    ],
                                   ),
+                                  // Show "Register Now" button if user not found
+                                  if (_error!.contains('User not found')) ...[
+                                    const SizedBox(height: 12),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () async {
+                                          final result = await showDialog(
+                                            context: context,
+                                            builder: (context) =>
+                                                const RegisterDialog(),
+                                          );
+                                          if (result == true && mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                    'Registration successful! Please sign in.'),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                            setState(() => _error = null);
+                                          }
+                                        },
+                                        icon: const Icon(Icons.person_add),
+                                        label: const Text('Register Now'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blue,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),

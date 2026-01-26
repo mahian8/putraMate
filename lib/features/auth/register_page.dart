@@ -169,7 +169,21 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     controller: _email,
                     decoration: const InputDecoration(labelText: 'Email *'),
                     keyboardType: TextInputType.emailAddress,
-                    validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
+                    validator: (v) {
+                      if (v?.isEmpty ?? true) return 'Required';
+                      // Prevent students from registering with admin/counselor domains
+                      final email = v!.toLowerCase();
+                      if (email.endsWith('@admin.com') ||
+                          email.endsWith('@upm.com') ||
+                          email.endsWith('@counselor.com')) {
+                        return 'This email domain is reserved for staff. Use your student email.';
+                      }
+                      // Basic email format validation
+                      if (!email.contains('@') || !email.contains('.')) {
+                        return 'Please enter a valid email address';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 12),
                   TextFormField(

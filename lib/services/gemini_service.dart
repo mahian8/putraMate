@@ -34,7 +34,7 @@ Important Guidelines:
 
   GenerativeModel get model {
     _model ??= GenerativeModel(
-      model: 'gemini-2.5-flash',
+      model: 'gemini-1.5-flash-002',
       apiKey: _apiKey,
       systemInstruction: Content.text(_systemContext),
       generationConfig: GenerationConfig(

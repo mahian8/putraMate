@@ -24,6 +24,32 @@ class NotificationsPage extends ConsumerWidget {
     return PrimaryScaffold(
       title: 'Notifications',
       actions: [
+        IconButton(
+          tooltip: 'Delete all',
+          onPressed: () async {
+            final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Delete all notifications?'),
+                content: const Text('This will remove all your notifications.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Delete'),
+                  ),
+                ],
+              ),
+            );
+            if (confirmed == true) {
+              await firestore.deleteAllNotifications(user.uid);
+            }
+          },
+          icon: const Icon(Icons.delete_forever, color: Colors.white),
+        ),
         TextButton(
           onPressed: () async {
             await firestore.markAllNotificationsRead(user.uid);
@@ -114,15 +140,29 @@ class NotificationsPage extends ConsumerWidget {
                       ),
                   ],
                 ),
-                trailing: read
-                    ? null
-                    : Text(
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!read)
+                      Text(
                         'NEW',
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.primary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                    IconButton(
+                      tooltip: 'Delete',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: notificationId == null
+                          ? null
+                          : () async {
+                              await firestore.deleteNotification(
+                                  user.uid, notificationId);
+                            },
+                    ),
+                  ],
+                ),
               );
             },
           );

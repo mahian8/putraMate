@@ -52,8 +52,13 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isAdmin();
       
       // Chat history - private to user
-      match /chatHistory/{messageId} {
+      match /chatHistory/{conversationId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
+        
+        // Messages subcollection within each conversation
+        match /messages/{messageId} {
+          allow read, write: if isSignedIn() && request.auth.uid == userId;
+        }
       }
       
       // Mood entries - private to student
@@ -70,13 +75,11 @@ service cloud.firestore {
       match /notifications/{notificationId} {
         // Only the owner can read/list their notifications
         allow read, list: if isSignedIn() && request.auth.uid == userId;
-        // Creation allowed by the owner, counsellors, or admins
-        allow create: if isSignedIn() && (
-          request.auth.uid == userId || isCounsellor() || isAdmin()
-        );
+        // Creation allowed by any authenticated user (client enforces who sends)
+        allow create: if isSignedIn();
         // Updates (e.g., mark read) allowed by the owner; deletes by admin
         allow update: if isSignedIn() && request.auth.uid == userId;
-        allow delete: if isSignedIn() && isAdmin();
+        allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       }
     }
     
@@ -90,6 +93,8 @@ service cloud.firestore {
         resource.data.counsellorId == request.auth.uid ||
         (resource.data.keys().hasAny(['participants']) && 
          resource.data.participants.hasAny([request.auth.uid])) ||
+        // Allow counsellors to read any appointment (e.g. for Student Insights)
+        isCounsellor() ||
         // Allow students to read any appointment that contains a review (rating or comment)
         // This enables universal visibility of reviews regardless of status,
         // while Firestore still filters to only docs that match this condition.

@@ -262,6 +262,44 @@ class _SessionsTabState extends ConsumerState<_SessionsTab> {
         counsellorId: widget.counsellorId,
       ),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          final err = snapshot.error;
+          return Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.lock_outline, size: 48, color: Colors.orange),
+                const SizedBox(height: 12),
+                const Text(
+                  'Unable to load notes',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This can be due to permissions or a missing Firestore index. If this persists, contact an admin.',
+                  style: TextStyle(color: Colors.grey[700]),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Text(
+                    '$err',
+                    style: const TextStyle(fontSize: 12, color: Colors.black87),
+                  ),
+                )
+              ],
+            ),
+          );
+        }
+
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -743,20 +781,16 @@ class _NotesTab extends ConsumerWidget {
     final fs = ref.watch(firestoreServiceProvider);
 
     return StreamBuilder<List<Appointment>>(
-      stream: fs.appointmentsForStudentAndCounsellor(
-        studentId: studentId,
-        counsellorId: counsellorId,
-      ),
+      // Show notes/follow-ups from any counsellor for this student
+      stream: fs.appointmentsForStudent(studentId),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // Filter to show only past completed sessions with notes/follow-up
+        // Include any session (past or upcoming) that has counsellor notes or a follow-up plan
         final sessions = snapshot.data!
             .where((a) =>
-                a.status == AppointmentStatus.completed &&
-                a.start.isBefore(DateTime.now()) &&
                 ((a.counsellorNotes != null && a.counsellorNotes!.isNotEmpty) ||
                     (a.followUpPlan != null && a.followUpPlan!.isNotEmpty)))
             .toList();
@@ -786,22 +820,22 @@ class _NotesTab extends ConsumerWidget {
           );
         }
 
-        return GridView.builder(
+        return ListView.separated(
           padding: const EdgeInsets.all(12),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.8,
-          ),
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemCount: sessions.length,
           itemBuilder: (context, index) {
             final session = sessions[index];
             return StreamBuilder(
               stream: fs.userProfile(session.counsellorId),
               builder: (context, counsellorSnap) {
-                final counsellorName =
-                    counsellorSnap.data?.displayName ?? 'Counsellor';
+                // Show counsellor name from snapshot or use fallback
+                String counsellorName = 'Counsellor';
+                if (counsellorSnap.hasData && counsellorSnap.data != null) {
+                  counsellorName =
+                      counsellorSnap.data?.displayName ?? 'Counsellor';
+                }
+                // Ignore errors and show fallback instead of re-loading
                 return Card(
                   elevation: 2,
                   child: Padding(
@@ -809,8 +843,9 @@ class _NotesTab extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Header
+                        // Header: date/time + status + counsellor
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             CircleAvatar(
                               radius: 16,
@@ -820,87 +855,100 @@ class _NotesTab extends ConsumerWidget {
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(
-                                DateFormat('MMM d').format(session.start),
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 13),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 12),
-                        // Topic
-                        Text(
-                          session.topic ?? 'Session',
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w600),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        // Counselor
-                        Row(
-                          children: [
-                            const Icon(Icons.person,
-                                size: 12, color: Colors.grey),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                counsellorName,
-                                style: TextStyle(
-                                    fontSize: 11, color: Colors.grey[600]),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        // Notes preview
-                        if (session.counsellorNotes != null &&
-                            session.counsellorNotes!.isNotEmpty)
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade50,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Row(
-                                    children: [
-                                      Icon(Icons.note,
-                                          size: 12, color: Colors.blue),
-                                      SizedBox(width: 4),
-                                      Text('Notes',
-                                          style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.blue)),
-                                    ],
+                                  Text(
+                                    DateFormat('EEE, MMM d • h:mm a')
+                                        .format(session.start),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Expanded(
-                                    child: Text(
-                                      session.counsellorNotes!,
-                                      style: const TextStyle(fontSize: 11),
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.person,
+                                          size: 12, color: Colors.grey),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          counsellorName,
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey[700]),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Chip(
+                                        label: Text(
+                                          session.status.name,
+                                          style: const TextStyle(fontSize: 10),
+                                        ),
+                                        visualDensity: VisualDensity.compact,
+                                        materialTapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 0),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
                             ),
+                          ],
+                        ),
+                        if (session.topic != null &&
+                            session.topic!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            session.topic!,
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w600),
                           ),
-                        // Follow-up preview
+                        ],
+                        const SizedBox(height: 8),
+                        if (session.counsellorNotes != null &&
+                            session.counsellorNotes!.isNotEmpty) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.note,
+                                        size: 14, color: Colors.blue),
+                                    SizedBox(width: 6),
+                                    Text('Notes',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.blue)),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  session.counsellorNotes!,
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         if (session.followUpPlan != null &&
                             session.followUpPlan!.isNotEmpty) ...[
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
                           Container(
-                            padding: const EdgeInsets.all(8),
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
                               color: Colors.orange.shade50,
                               borderRadius: BorderRadius.circular(6),
@@ -909,23 +957,22 @@ class _NotesTab extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(Icons.assignment,
-                                        size: 12, color: Colors.orange),
-                                    SizedBox(width: 4),
+                                        size: 14, color: Colors.orange),
+                                    SizedBox(width: 6),
                                     Text('Follow-up',
                                         style: TextStyle(
-                                            fontSize: 10,
+                                            fontSize: 12,
                                             fontWeight: FontWeight.w600,
                                             color: Colors.orange)),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 6),
                                 Text(
                                   session.followUpPlan!,
-                                  style: const TextStyle(fontSize: 11),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 13),
                                 ),
                               ],
                             ),

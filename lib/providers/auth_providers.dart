@@ -7,11 +7,13 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 
 final firebaseAppProvider = FutureProvider<FirebaseApp>((ref) async {
-  return Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  return Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform);
 });
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
-final firestoreServiceProvider = Provider<FirestoreService>((ref) => FirestoreService());
+final firestoreServiceProvider =
+    Provider<FirestoreService>((ref) => FirestoreService());
 
 final authStateProvider = StreamProvider<User?>((ref) {
   return ref.watch(authServiceProvider).authStateChanges();

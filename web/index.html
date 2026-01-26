@@ -19,12 +19,10 @@
 
 <body>
     <script>
-        // Flutter Web bootstrap
-        let serviceWorkerVersion = null;
+        var serviceWorkerVersion = null;
         window.addEventListener('load', function () {
-            if (!_flutter || !_flutter.loader) return;
             _flutter.loader.loadEntrypoint({
-                serviceWorker: { serviceWorkerVersion },
+                serviceWorker: { serviceWorkerVersion: serviceWorkerVersion },
                 onEntrypointLoaded: function (engineInitializer) {
                     engineInitializer.initializeEngine().then(function (appRunner) {
                         appRunner.runApp();
@@ -34,7 +32,6 @@
         });
     </script>
     <script src="flutter.js" defer></script>
-    <script src="flutter_bootstrap.js" defer></script>
 </body>
 
 </html>

@@ -25,6 +25,21 @@ class CounsellorDashboardPage extends ConsumerStatefulWidget {
 class _CounsellorDashboardPageState
     extends ConsumerState<CounsellorDashboardPage> {
   int _selectedTab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-complete expired sessions once when page loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authState = ref.read(authStateProvider);
+      authState.whenData((user) {
+        if (user != null) {
+          ref.read(_fsProvider).autoCompleteExpiredSessionsForUser(user.uid);
+        }
+      });
+    });
+  }
+
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -62,10 +77,7 @@ class _CounsellorDashboardPageState
       );
     }
 
-    // Auto-complete any sessions past end time by 30 minutes for counsellor
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(_fsProvider).autoCompleteExpiredSessionsForUser(user.uid);
-    });
+    // Auto-complete is handled in initState to avoid duplicate calls on rebuild
 
     return PrimaryScaffold(
       title: 'Counsellor Dashboard',
@@ -214,11 +226,24 @@ class _NextSessionsTabState extends ConsumerState<_NextSessionsTab> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        // Auto-complete expired sessions whenever data updates
+        final fs = ref.read(_fsProvider);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          fs.autoCompleteExpiredSessionsForUser(user.uid);
+          // Also send appointment reminders
+          fs.sendAppointmentReminders(user.uid);
+        });
+
         final appts = snapshot.data!;
-        final upcoming =
-            appts.where((a) => a.start.isAfter(DateTime.now())).toList();
-        var past =
-            appts.where((a) => a.start.isBefore(DateTime.now())).toList();
+        // Show upcoming and in-progress sessions (start time in future OR currently in progress)
+        final upcoming = appts.where((a) {
+          final now = DateTime.now();
+          // Show if session hasn't ended yet and status is not completed/cancelled
+          return a.end.isAfter(now) &&
+              a.status != AppointmentStatus.completed &&
+              a.status != AppointmentStatus.cancelled;
+        }).toList();
+        var past = appts.where((a) => a.end.isBefore(DateTime.now())).toList();
 
         // Sort past sessions by most recent first
         past.sort((a, b) => b.start.compareTo(a.start));

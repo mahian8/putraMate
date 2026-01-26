@@ -37,20 +37,6 @@ class AuthService {
         print('✓ Role fetched: $role');
         print('✓ isActive fetched: $isActive');
 
-        // Auto-create admin profile if logging in with @admin.com domain and no profile exists
-        if (email.toLowerCase().endsWith('@admin.com') &&
-            (!doc.exists || role != 'admin')) {
-          print('→ Creating admin profile...');
-          await _firestore.collection('users').doc(cred.user?.uid).set({
-            'uid': cred.user?.uid,
-            'email': email,
-            'displayName': email.split('@')[0],
-            'role': 'admin',
-          }, SetOptions(merge: true));
-          role = 'admin';
-          print('✓ Admin profile created');
-        }
-
         // Block login for disabled accounts
         if (role == 'counsellor' && !isActive) {
           print('✗ Counsellor account disabled, blocking login');
@@ -288,5 +274,31 @@ class AuthService {
   Future<void> deleteUserAccount(String uid) async {
     await _firestore.collection('users').doc(uid).delete();
     // Note: Deleting from Firebase Auth requires Admin SDK
+  }
+
+  // Reset password without current password (for forgot password flow)
+  Future<void> resetPasswordWithVerification({
+    required String email,
+    required String newPassword,
+  }) async {
+    try {
+      // Get user by email to get their UID
+      final methods = await _auth.fetchSignInMethodsForEmail(email);
+      if (methods.isEmpty) {
+        throw 'No user found with this email address.';
+      }
+
+      // We need to use Firebase Admin REST API to update password without knowing current password
+      // For now, we'll use the password reset email method as a fallback
+      // In production, you should implement this using Firebase Admin SDK on backend
+
+      // Alternative: Create a custom token and sign in to update password
+      // This requires Firebase Admin SDK running on a backend server
+
+      throw 'Password reset not fully implemented. Please use email reset link.';
+    } catch (e) {
+      print('Error in resetPasswordWithVerification: $e');
+      rethrow;
+    }
   }
 }
