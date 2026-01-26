@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:html' as html;
 import '../../providers/auth_providers.dart';
 import '../../router/app_router.dart';
 import '../common/common_widgets.dart';
@@ -10,6 +11,43 @@ class RegisterPage extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<RegisterPage> createState() => _RegisterPageState();
+}
+
+// Helper function to add HTML attributes to form fields
+void _addFormFieldAttributes() {
+  try {
+    final inputs = html.document.querySelectorAll(
+        'input[type="text"], input[type="email"], input[type="password"], input[type="date"]');
+    for (var i = 0; i < inputs.length; i++) {
+      final input = inputs[i] as html.InputElement;
+
+      // Only add if not already present
+      if (input.id.isEmpty) {
+        input.id = 'field_$i';
+      }
+      if ((input.name?.isEmpty ?? true)) {
+        input.name = 'field_$i';
+      }
+
+      // Add autocomplete attributes based on field type
+      final placeholder = input.placeholder.toLowerCase();
+      if (placeholder.contains('name')) {
+        input.autocomplete = 'name';
+      } else if (placeholder.contains('email')) {
+        input.autocomplete = 'email';
+      } else if (placeholder.contains('password')) {
+        input.autocomplete = 'current-password';
+      } else if (placeholder.contains('birth')) {
+        input.autocomplete = 'bday';
+      } else if (placeholder.contains('phone')) {
+        input.autocomplete = 'tel';
+      } else {
+        input.autocomplete = 'off';
+      }
+    }
+  } catch (e) {
+    // Silently ignore if web APIs are not available
+  }
 }
 
 class _RegisterPageState extends ConsumerState<RegisterPage> {
@@ -31,6 +69,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   bool _loading = false;
   bool _obscurePassword = true;
   String? _error;
+  bool _hasInvalidEmailDomain = false; // Track if email has blocked domains
 
   // Password validation states
   bool get _hasMinLength => _password.text.length >= 8;
@@ -38,10 +77,30 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   bool get _hasSpecialChar =>
       _password.text.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
 
+  // Email domain validation - returns false if domain is blocked
+  bool get _isEmailValid {
+    final email = _email.text.toLowerCase().trim();
+    if (email.isEmpty) return true; // Empty is ok (form validator handles it)
+
+    // Block @admin.com and @upm.com domains for students
+    if (email.endsWith('@admin.com') || email.endsWith('@upm.com')) {
+      return false;
+    }
+    return true;
+  }
+
   @override
   void initState() {
     super.initState();
     _password.addListener(() => setState(() {}));
+    // Real-time email domain validation
+    _email.addListener(() {
+      setState(() {
+        _hasInvalidEmailDomain = !_isEmailValid;
+      });
+    });
+    // Add HTML attributes to form fields when page loads
+    Future.delayed(const Duration(milliseconds: 500), _addFormFieldAttributes);
   }
 
   @override
@@ -167,21 +226,40 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _email,
-                    decoration: const InputDecoration(labelText: 'Email *'),
+                    decoration: InputDecoration(
+                      labelText: 'Email *',
+                      errorText: _hasInvalidEmailDomain
+                          ? '❌ This domain is reserved. Use your personal email.'
+                          : null,
+                      errorMaxLines: 2,
+                      suffixIcon: _hasInvalidEmailDomain
+                          ? const Icon(Icons.error, color: Colors.red)
+                          : null,
+                    ),
                     keyboardType: TextInputType.emailAddress,
                     validator: (v) {
                       if (v?.isEmpty ?? true) return 'Required';
-                      // Prevent students from registering with admin/counselor domains
-                      final email = v!.toLowerCase();
-                      if (email.endsWith('@admin.com') ||
-                          email.endsWith('@upm.com') ||
-                          email.endsWith('@counselor.com')) {
-                        return 'This email domain is reserved for staff. Use your student email.';
+
+                      final email = v!.toLowerCase().trim();
+
+                      // ====== DOMAIN RESTRICTION POLICY ======
+                      // @admin.com   → ONLY for admin accounts (system created)
+                      // @upm.com     → ONLY for counselor accounts (admin created)
+                      // Students     → MUST use personal email
+                      // =======================================
+
+                      if (email.endsWith('@admin.com')) {
+                        return '❌ @admin.com is reserved for administrators only.\nPlease use your personal email address.';
                       }
+                      if (email.endsWith('@upm.com')) {
+                        return '❌ @upm.com is reserved for counselors only.\nPlease use your personal email address.';
+                      }
+
                       // Basic email format validation
                       if (!email.contains('@') || !email.contains('.')) {
                         return 'Please enter a valid email address';
                       }
+
                       return null;
                     },
                   ),
@@ -333,7 +411,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
                   const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: _loading ? null : _submit,
+                    onPressed:
+                        (_loading || _hasInvalidEmailDomain) ? null : _submit,
                     child: _loading
                         ? const CircularProgressIndicator()
                         : const Text('Sign up'),
@@ -379,6 +458,7 @@ class _RegisterDialogState extends ConsumerState<RegisterDialog> {
   bool _loading = false;
   bool _obscurePassword = true;
   String? _error;
+  bool _hasInvalidEmailDomain = false; // Track if email has blocked domains
 
   // Password validation states
   bool get _hasMinLength => _password.text.length >= 8;
@@ -386,10 +466,28 @@ class _RegisterDialogState extends ConsumerState<RegisterDialog> {
   bool get _hasSpecialChar =>
       _password.text.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
 
+  // Email domain validation - returns false if domain is blocked
+  bool get _isEmailValid {
+    final email = _email.text.toLowerCase().trim();
+    if (email.isEmpty) return true; // Empty is ok (form validator handles it)
+
+    // Block @admin.com and @upm.com domains for students
+    if (email.endsWith('@admin.com') || email.endsWith('@upm.com')) {
+      return false;
+    }
+    return true;
+  }
+
   @override
   void initState() {
     super.initState();
     _password.addListener(() => setState(() {}));
+    // Real-time email domain validation
+    _email.addListener(() {
+      setState(() {
+        _hasInvalidEmailDomain = !_isEmailValid;
+      });
+    });
   }
 
   @override
@@ -521,9 +619,35 @@ class _RegisterDialogState extends ConsumerState<RegisterDialog> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _email,
-                decoration: const InputDecoration(labelText: 'Email *'),
+                decoration: InputDecoration(
+                  labelText: 'Email *',
+                  errorText: _hasInvalidEmailDomain
+                      ? '❌ This domain is reserved. Use your personal email.'
+                      : null,
+                  errorMaxLines: 2,
+                  suffixIcon: _hasInvalidEmailDomain
+                      ? const Icon(Icons.error, color: Colors.red)
+                      : null,
+                ),
                 keyboardType: TextInputType.emailAddress,
-                validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
+                validator: (v) {
+                  if (v?.isEmpty ?? true) return 'Required';
+
+                  final email = v!.toLowerCase().trim();
+
+                  if (email.endsWith('@admin.com')) {
+                    return '❌ @admin.com is reserved for administrators only.';
+                  }
+                  if (email.endsWith('@upm.com')) {
+                    return '❌ @upm.com is reserved for counselors only.';
+                  }
+
+                  if (!email.contains('@') || !email.contains('.')) {
+                    return 'Please enter a valid email address';
+                  }
+
+                  return null;
+                },
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -669,7 +793,8 @@ class _RegisterDialogState extends ConsumerState<RegisterDialog> {
 
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: _loading ? null : _submit,
+                onPressed:
+                    (_loading || _hasInvalidEmailDomain) ? null : _submit,
                 child: _loading
                     ? const CircularProgressIndicator()
                     : const Text('Sign up'),

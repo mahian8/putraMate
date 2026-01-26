@@ -37,9 +37,10 @@ service cloud.firestore {
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student')
       );
       
-      // Allow create for self-registration (students) or admin creating counsellors
+      // Allow create for self-registration (students) or admin creating any user
+      // Admin can create users with any role (student, counsellor, admin)
       allow create: if isSignedIn() && (
-        request.auth.uid == userId ||
+        (request.auth.uid == userId && request.resource.data.role == 'student') ||
         isAdmin()
       );
       

@@ -3,7 +3,7 @@ import 'dart:convert';
 
 class GeminiService {
   GeminiService({String? apiKey})
-      : _apiKey = apiKey ?? 'AIzaSyA4rMKMrKRlQuM_-Bztklth6d9FDNt1hYY';
+      : _apiKey = apiKey ?? 'AIzaSyBp1H8RE4Qv8yTR1iREgH8eLqOmLS_WNqk';
 
   final String _apiKey;
   GenerativeModel? _model;
@@ -34,7 +34,7 @@ Important Guidelines:
 
   GenerativeModel get model {
     _model ??= GenerativeModel(
-      model: 'gemini-1.5-flash-002',
+      model: 'gemini-pro',
       apiKey: _apiKey,
       systemInstruction: Content.text(_systemContext),
       generationConfig: GenerationConfig(
@@ -50,42 +50,65 @@ Important Guidelines:
   Future<String> sendMessage(String message,
       {List<Map<String, dynamic>>? conversationHistory,
       String? moodContext}) async {
-    try {
-      final List<Content> contents = [];
+    // Retry logic for API calls
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        final List<Content> contents = [];
 
-      // Add mood context if available
-      if (moodContext != null && moodContext.isNotEmpty) {
-        contents.add(
-            Content('user', [TextPart('MOOD HISTORY CONTEXT: $moodContext')]));
-        contents.add(Content('model', [
-          TextPart(
-              'I understand. I have reviewed the student\'s recent mood patterns and will consider this in my response.')
-        ]));
-      }
-
-      // Add conversation history (last 8 messages for context)
-      if (conversationHistory != null && conversationHistory.isNotEmpty) {
-        final recentMessages =
-            conversationHistory.reversed.take(8).toList().reversed;
-        for (final msg in recentMessages) {
-          final isUser = msg['isUser'] as bool? ?? true;
-          final text = msg['text'] as String? ?? '';
-          contents.add(Content(isUser ? 'user' : 'model', [TextPart(text)]));
+        // Add mood context if available
+        if (moodContext != null && moodContext.isNotEmpty) {
+          contents.add(Content(
+              'user', [TextPart('MOOD HISTORY CONTEXT: $moodContext')]));
+          contents.add(Content('model', [
+            TextPart(
+                'I understand. I have reviewed the student\'s recent mood patterns and will consider this in my response.')
+          ]));
         }
+
+        // Add conversation history (last 8 messages for context)
+        if (conversationHistory != null && conversationHistory.isNotEmpty) {
+          final recentMessages =
+              conversationHistory.reversed.take(8).toList().reversed;
+          for (final msg in recentMessages) {
+            final isUser = msg['isUser'] as bool? ?? true;
+            final text = msg['text'] as String? ?? '';
+            contents.add(Content(isUser ? 'user' : 'model', [TextPart(text)]));
+          }
+        }
+
+        // Add current message
+        contents.add(Content.text(message));
+
+        final response = await model.generateContent(contents);
+        final responseText = response.text;
+
+        if (responseText != null && responseText.isNotEmpty) {
+          return responseText;
+        }
+
+        // If empty response, try again
+        if (attempt < 2) {
+          await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+          continue;
+        }
+
+        return 'I apologize, I could not generate a response.';
+      } catch (e) {
+        // ignore: avoid_print
+        print('Gemini sendMessage error (attempt ${attempt + 1}): $e');
+
+        // If this is the last attempt, return null to signal failure
+        if (attempt == 2) {
+          return '';
+        }
+
+        // Wait before retrying
+        await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
       }
-
-      // Add current message
-      contents.add(Content.text(message));
-
-      final response = await model.generateContent(contents);
-      return response.text ?? 'I apologize, I could not generate a response.';
-    } catch (e) {
-      // Log the underlying failure to help diagnose key/config/connectivity issues.
-      // This is safe to surface in logs but the returned string stays generic for users.
-      // ignore: avoid_print
-      print('Gemini sendMessage error: $e');
-      return 'Error: Unable to connect to AI service. Please check your network or API key and try again.';
     }
+
+    // Should never reach here, but just in case
+    return '';
   }
 
   Future<Map<String, dynamic>> analyzeSentiment(String textInput) async {

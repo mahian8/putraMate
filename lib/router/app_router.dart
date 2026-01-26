@@ -85,6 +85,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         return _dashboardPath(role);
       }
 
+      // SECURITY: Only redirect if role is actually loaded
+      // If role is null, don't redirect (prevents unwanted navigation during role loading)
+      if (role == null) return null;
+
       final path = state.matchedLocation;
       if (role == UserRole.student &&
           (path.startsWith('/counsellor') || path.startsWith('/admin'))) {

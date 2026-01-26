@@ -6,6 +6,7 @@ import '../../services/gemini_service.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_providers.dart';
 import '../../models/user_profile.dart';
+import '../../models/appointment.dart';
 import '../common/common_widgets.dart';
 import 'counsellor_detail_page.dart';
 
@@ -37,7 +38,33 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
         lower.contains('can you book') ||
         lower.contains('please book') ||
         lower.contains('make an appointment') ||
-        lower.contains('set an appointment');
+        lower.contains('set an appointment') ||
+        lower.contains('schedule an appointment') ||
+        lower.contains('book an appointment') ||
+        lower.contains('book a session') ||
+        lower.contains('schedule a session') ||
+        lower.contains('set up an appointment') ||
+        lower.contains('arrange an appointment') ||
+        lower.contains('i need to book') ||
+        lower.contains('i want to book') ||
+        lower.contains('help me book') ||
+        lower.contains('book appointment');
+  }
+
+  bool _userRequestedCatalogue(String text) {
+    final lower = text.toLowerCase();
+    return lower.contains('show me the catalogue') ||
+        lower.contains('show catalogue') ||
+        lower.contains('view catalogue') ||
+        lower.contains('see catalogue') ||
+        lower.contains('show me counselors') ||
+        lower.contains('show me counsellors') ||
+        lower.contains('list of counselors') ||
+        lower.contains('list of counsellors') ||
+        lower.contains('available counselors') ||
+        lower.contains('available counsellors') ||
+        lower.contains('who can i talk to') ||
+        lower.contains('who is available');
   }
 
   @override
@@ -223,24 +250,61 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
               })
           .toList();
 
-      // Run AI analysis
-      final responseFuture = gemini.sendMessage(
-        text,
-        conversationHistory: convo,
-        moodContext: moodContext,
-      );
-      final sentimentFuture = gemini.analyzeSentiment(text);
-      final bookingIntentFuture = gemini.detectBookingIntent(text);
+      // Check for explicit booking request first
+      final explicitBooking = _userRequestedBooking(text);
+      final catalogueRequested = _userRequestedCatalogue(text);
 
-      final response = await responseFuture;
-      final sentiment = await sentimentFuture;
+      // If explicit booking or catalogue, skip AI response and go straight to showing counselors
+      String response = '';
+      Map<String, dynamic> sentiment = {
+        'sentiment': 'neutral',
+        'riskLevel': 'low',
+        'score': 5,
+        'keywords': <String>[],
+        'recommendation': 'Continue monitoring',
+      };
+      bool hasBookingIntent = explicitBooking || catalogueRequested;
+      String confidence =
+          (explicitBooking || catalogueRequested) ? 'high' : 'low';
+      String urgency = 'normal';
+
+      if (!explicitBooking && !catalogueRequested) {
+        // Run AI analysis only if not explicit booking or catalogue request
+        final responseFuture = gemini.sendMessage(
+          text,
+          conversationHistory: convo,
+          moodContext: moodContext,
+        );
+        final sentimentFuture = gemini.analyzeSentiment(text);
+        final bookingIntentFuture = gemini.detectBookingIntent(text);
+
+        response = await responseFuture;
+
+        // Check if API call failed
+        if (response.isEmpty) {
+          setState(() {
+            _messages.add({
+              'sender': 'bot',
+              'text':
+                  'I\'m having trouble connecting right now. Please try again in a moment. If the issue persists, you can book a counsellor directly from the Booking Calendar.',
+              'timestamp': DateTime.now().millisecondsSinceEpoch,
+            });
+            _isTyping = false;
+          });
+          _scrollToBottom();
+          return;
+        }
+
+        sentiment = await sentimentFuture;
+        final bookingIntent = await bookingIntentFuture;
+        hasBookingIntent = hasBookingIntent ||
+            (bookingIntent['hasBookingIntent'] == true ||
+                bookingIntent['hasBookingIntent'] == 'true');
+        confidence = bookingIntent['confidence']?.toString() ?? 'low';
+        urgency = bookingIntent['urgency']?.toString() ?? 'none';
+      }
+
       final riskLevel = sentiment['riskLevel'] as String;
-
-      final bookingIntent = await bookingIntentFuture;
-      var hasBookingIntent = (bookingIntent['hasBookingIntent'] == true ||
-          bookingIntent['hasBookingIntent'] == 'true');
-      var confidence = bookingIntent['confidence']?.toString() ?? 'low';
-      var urgency = bookingIntent['urgency']?.toString() ?? 'none';
 
       // Override with mood urgency
       if ((isStruggling && moodSeverity == 'critical') || shouldFlagUrgent) {
@@ -270,36 +334,88 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
 
       if (hasBookingIntent &&
           (confidence == 'high' || confidence == 'medium')) {
-        problemKeywords = await gemini.extractProblemKeywords(text);
-
-        var counselors = <UserProfile>[];
-        if (problemKeywords.isNotEmpty) {
-          counselors =
-              await firestore.getCounselorsByExpertise(problemKeywords);
-        }
-        if (counselors.isEmpty) {
-          counselors = await firestore.counsellors().first;
-        }
-
-        if (counselors.isNotEmpty) {
-          if (hasActiveFlag || riskLevel == 'critical' || riskLevel == 'high') {
-            counselors.sort((a, b) {
-              final aScore = _suitabilityScore(a.expertise ?? '');
-              final bScore = _suitabilityScore(b.expertise ?? '');
-              return bScore.compareTo(aScore);
-            });
+        try {
+          // For explicit booking/catalogue requests, use simple keyword extraction
+          if (explicitBooking || catalogueRequested) {
+            // Extract basic keywords from the user message
+            final lowerText = text.toLowerCase();
+            if (lowerText.contains('stress') ||
+                lowerText.contains('anxious') ||
+                lowerText.contains('anxiety')) {
+              problemKeywords.add('anxiety');
+            }
+            if (lowerText.contains('sad') ||
+                lowerText.contains('depressed') ||
+                lowerText.contains('depression')) {
+              problemKeywords.add('depression');
+            }
+            if (lowerText.contains('exam') ||
+                lowerText.contains('study') ||
+                lowerText.contains('academic')) {
+              problemKeywords.add('academic stress');
+            }
+            // For catalogue requests, get recent mood for better matching
+            if (catalogueRequested && moodContext != null) {
+              problemKeywords.add('general wellness');
+            }
+          } else {
+            problemKeywords = await gemini.extractProblemKeywords(text);
           }
 
-          topCounselor = counselors.first;
-          availableSlots =
-              await firestore.getCounselorAvailableSlots(topCounselor.uid);
-          recommendedCounselors = counselors.take(3).toList();
+          var counselors = <UserProfile>[];
+          if (problemKeywords.isNotEmpty) {
+            counselors =
+                await firestore.getCounselorsByExpertise(problemKeywords);
+          }
+          if (counselors.isEmpty) {
+            try {
+              final allCounselorsStream = firestore.counsellors();
+              final allCounselorsList = await allCounselorsStream.first;
+              if (allCounselorsList.isNotEmpty) {
+                counselors = allCounselorsList;
+              }
+            } catch (e) {
+              print('No counselors available: $e');
+              // Continue with empty list
+            }
+          }
+
+          if (counselors.isNotEmpty) {
+            if (hasActiveFlag ||
+                riskLevel == 'critical' ||
+                riskLevel == 'high') {
+              counselors.sort((a, b) {
+                final aScore = _suitabilityScore(a.expertise ?? '');
+                final bScore = _suitabilityScore(b.expertise ?? '');
+                return bScore.compareTo(aScore);
+              });
+            }
+
+            topCounselor = counselors.first;
+            availableSlots =
+                await firestore.getCounselorAvailableSlots(topCounselor.uid);
+
+            // Only show counselor cards if we have available slots
+            if (availableSlots.isNotEmpty) {
+              recommendedCounselors = counselors.take(3).toList();
+            }
+          }
+        } catch (e) {
+          print('Error fetching counselors: $e');
+          // Continue without counselor recommendations
         }
       }
 
+      // If explicit booking/catalogue and no AI response, use default message
+      final botResponseText = response.isEmpty && explicitBooking
+          ? 'Let me help you book an appointment with a counselor.'
+          : response.isEmpty && catalogueRequested
+              ? 'Here are the available counselors I recommend for you, along with their available times. You can let me book automatically or browse the full catalog.'
+              : response;
+
       final botMessage = {
         'sender': 'bot',
-        'text': response,
+        'text': botResponseText,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
         'sentiment': sentiment,
         'bookingIntent': hasBookingIntent &&
@@ -312,24 +428,70 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
         'hasActiveFlag': hasActiveFlag,
       };
 
-      // Auto-book if the user explicitly asked and we have slots
-      final explicitBooking = _userRequestedBooking(text);
-      final canAutoBook = explicitBooking &&
+      // Auto-book if the user explicitly asked (not catalogue) and we have slots
+      // Also consider high confidence booking intent as explicit
+      final shouldAutoBook = (explicitBooking ||
+              (hasBookingIntent &&
+                  confidence == 'high' &&
+                  !catalogueRequested)) &&
           topCounselor != null &&
           (availableSlots?.isNotEmpty ?? false);
 
-      if (canAutoBook) {
+      if (shouldAutoBook) {
+        final firstSlot = availableSlots!.first;
+
         await _autoBookCounselor(
-          counselor: topCounselor!,
-          dateTime: availableSlots!.first,
+          counselor: topCounselor,
+          dateTime: firstSlot,
         );
+
+        // Build explanation message
+        final keywordText = problemKeywords.isNotEmpty
+            ? problemKeywords.join(', ')
+            : 'your needs';
+        final expertiseText = topCounselor.expertise ?? 'counseling';
+
+        final explanationText =
+            '✅ I\'ve booked your session with ${topCounselor.displayName}!\n\n'
+            '🎯 Why this counselor?\n'
+            'Based on what you shared about $keywordText, I matched you with ${topCounselor.displayName} who specializes in: $expertiseText\n\n'
+            '📅 Your session is on ${firstSlot.day}/${firstSlot.month} at ${firstSlot.hour}:${firstSlot.minute.toString().padLeft(2, '0')}\n\n'
+            'They can provide personalized support to help you navigate what you\'re experiencing. If you\'d prefer a different time or counselor, just let me know!';
 
         // Add an acknowledgement message and exit early
         setState(() {
           _messages.add({
             'sender': 'bot',
-            'text':
-                'I went ahead and booked the earliest available session with ${topCounselor!.displayName}. If you prefer a different time, let me know!',
+            'text': explanationText,
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+          });
+          _isTyping = false;
+        });
+        _scrollToBottom();
+        return;
+      }
+
+      // If user asked for booking/catalogue but couldn't auto-book, explain why
+      if ((explicitBooking ||
+              catalogueRequested ||
+              (hasBookingIntent && confidence == 'high')) &&
+          !shouldAutoBook) {
+        String fallbackMessage = catalogueRequested
+            ? 'I\'d be happy to show you available counselors! '
+            : 'I\'d be happy to help you book an appointment! ';
+
+        if (topCounselor == null) {
+          fallbackMessage +=
+              'However, there are no counselors available in the system at the moment. Please contact the administrator or try again later.';
+        } else if (availableSlots == null || availableSlots.isEmpty) {
+          fallbackMessage +=
+              'I found a great counselor for you (${topCounselor.displayName}), but they don\'t have any available slots right now. Please check back later or try the Booking Calendar to see other counselors.';
+        }
+
+        setState(() {
+          _messages.add({
+            'sender': 'bot',
+            'text': fallbackMessage,
             'timestamp': DateTime.now().millisecondsSinceEpoch,
           });
           _isTyping = false;
@@ -355,14 +517,6 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
         _messages.add(botMessage);
         _isTyping = false;
       });
-
-      // Show alert if critical
-      if (hasActiveFlag ||
-          riskLevel == 'high' ||
-          riskLevel == 'critical' ||
-          urgency == 'urgent') {
-        _showCriticalAlert(context, riskLevel);
-      }
 
       _scrollToBottom();
     } catch (e, stackTrace) {
@@ -401,30 +555,36 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
         end: end,
         topic: 'AI Chat Recommendation',
         initialProblem: 'Booked through AI assistant',
+        sessionType: SessionType.online,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✅ Appointment booked with ${counselor.displayName}!'),
-          duration: const Duration(seconds: 3),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('✅ Appointment booked with ${counselor.displayName}!'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
 
       setState(() {
         _messages.add({
           'sender': 'bot',
           'text':
-              '✅ Your appointment with ${counselor.displayName} is confirmed for ${dateTime.day}/${dateTime.month} at ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}. You can view it in your appointments. Looking forward to your session!',
+              '✅ Your online session with ${counselor.displayName} is confirmed for ${dateTime.day}/${dateTime.month} at ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}. You\'ll receive a meeting link before the session. You can view it in your appointments. Looking forward to your session!',
           'timestamp': DateTime.now().millisecondsSinceEpoch,
         });
       });
 
       _scrollToBottom();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error booking: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error booking: $e')),
+        );
+      }
     }
   }
 
@@ -457,33 +617,6 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
       score += 1;
     }
     return score;
-  }
-
-  void _showCriticalAlert(BuildContext context, String riskLevel) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('⚠️ We\'re Here to Help'),
-        content: Text(
-          riskLevel == 'critical'
-              ? 'I notice you might be going through a really difficult time. Professional support can make a real difference. Let me help you book an urgent session right now.'
-              : 'It sounds like you could really benefit from talking to a counselor. They can provide personalized support tailored to what you\'re experiencing.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _scrollToBottom();
-            },
-            child: const Text('Book Session'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _confirmDeleteConversation(String conversationId) async {

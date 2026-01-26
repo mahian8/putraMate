@@ -251,8 +251,8 @@ class _OverviewTabState extends ConsumerState<_OverviewTab> {
                 final totalBookings = allAppts.length;
                 final activeBookings = allAppts
                     .where((a) =>
-                        a.status != 'completed' &&
-                        a.status != 'cancelled' &&
+                        a.status != AppointmentStatus.completed &&
+                        a.status != AppointmentStatus.cancelled &&
                         a.start.isAfter(DateTime.now()))
                     .length;
 
@@ -937,12 +937,6 @@ class _CounsellorsTabState extends ConsumerState<_CounsellorsTab> {
                     ],
                     onChanged: (v) => setState(() => _filter = v ?? 'all'),
                   ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Counsellor'),
-                    onPressed: () => _showAddCounsellorDialog(),
-                  ),
                 ],
               ),
             ),
@@ -1207,172 +1201,6 @@ class _CounsellorsTabState extends ConsumerState<_CounsellorsTab> {
             ],
           );
         },
-      ),
-    );
-  }
-
-  void _showAddCounsellorDialog() {
-    final nameController = TextEditingController();
-    final emailController = TextEditingController();
-    final designationController = TextEditingController();
-    final expertiseController = TextEditingController();
-    final phoneController = TextEditingController();
-    final passwordController = TextEditingController();
-
-    widget.showCenteredDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add New Counsellor'),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: designationController,
-                decoration: const InputDecoration(
-                  labelText: 'Designation',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.badge),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: expertiseController,
-                decoration: const InputDecoration(
-                  labelText: 'Expertise (comma-separated)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.psychology),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.phone),
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
-                ),
-                obscureText: true,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              nameController.dispose();
-              emailController.dispose();
-              designationController.dispose();
-              expertiseController.dispose();
-              phoneController.dispose();
-              passwordController.dispose();
-              Navigator.pop(ctx);
-            },
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final name = nameController.text.trim();
-              final email = emailController.text.trim();
-              final designation = designationController.text.trim();
-              final expertise = expertiseController.text.trim();
-              final phone = phoneController.text.trim();
-              final password = passwordController.text.trim();
-
-              if (name.isEmpty ||
-                  email.isEmpty ||
-                  password.isEmpty ||
-                  designation.isEmpty ||
-                  expertise.isEmpty ||
-                  phone.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please fill all fields')),
-                );
-                return;
-              }
-
-              if (password.length < 6) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Password must be at least 6 characters')),
-                );
-                return;
-              }
-
-              try {
-                final cred =
-                    await ref.read(authServiceProvider).registerStudent(
-                          email: email,
-                          password: password,
-                          displayName: name,
-                        );
-
-                // Update role to counsellor
-                await ref.read(_fsProvider).updateUserProfile(
-                  cred.user!.uid,
-                  {
-                    'role': 'counsellor',
-                    'designation': designation,
-                    'expertise': expertise,
-                    'phoneNumber': phone,
-                  },
-                );
-
-                nameController.dispose();
-                emailController.dispose();
-                designationController.dispose();
-                expertiseController.dispose();
-                phoneController.dispose();
-                passwordController.dispose();
-                Navigator.pop(ctx);
-
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Counsellor added successfully')),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: ${e.toString()}')),
-                  );
-                }
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
       ),
     );
   }
